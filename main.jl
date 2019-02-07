@@ -12,7 +12,7 @@ include("./functions.jl")
 #faces_csv = CSV.read("/home/lai/Dropbox/dokt/code/matlab/triangles.csv", header=0)
 
 
-points_csv= CSV.read("/home/lai/Dropbox/dokt/code/matlab/points_sphere.csv", header=0)
+points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
 faces_csv = CSV.read("/home/lai/Dropbox/dokt/code/matlab/faces_sphere.csv", header=0)
 
 println("Loaded mesh")
@@ -146,6 +146,8 @@ for i in 1:steps
 
     points2 = points + velocitiesn * dt
     # trajectory[i + 1,:,:] = points2
+
+
 
     # ElTopo magic
     #actualdt,points2,faces2 = improvemeshcol(points,faces,points2,par)
