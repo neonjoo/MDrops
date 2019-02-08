@@ -1,7 +1,11 @@
 using LinearAlgebra
 using CSV
-using JLD2
-using ElTopo
+using Makie
+#using JLD2
+#using ElTopo
+#using PyPlot
+
+
 
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./functions.jl")
@@ -17,17 +21,40 @@ points = Array{Float64}(points')
 faces = Array{Int64}(faces')
 
 
-H0 = [0, 0, 10]
-eta = 1
-mu = 30
-gamma = 6.9 * 10^-1
-w = 2*pi/50
+# H0 = [0, 0, 10]
+# eta = 1
+# mu = 30
+# gamma = 6.9 * 10^-1
+# w = 2*pi/50
+#
+# dt = 0.01
+# steps = 50
+points = points .* (4.9 * 10^-1)
 
+
+H0 = [0, 0, 10]
+
+
+#H0 = 33 .* [0, 0, 1]
+#H0 = [0,0,0]
+mu = 30
+eta = 1
+gamma = 6.9 * 10^-1
+
+continue_sim = false
+last_step = 0
+
+w = 2*pi/50
+t = 0
 dt = 0.01
-steps = 10
+steps = 20
+
+
 
 for i in 1:steps
+
     global points, faces
+    global scene
     normals = Normals(points, faces)
 
     psi = PotentialSimple(points, faces, mu, H0; normals = normals)
@@ -50,7 +77,11 @@ for i in 1:steps
 
     velocitiesn = normals .* velocitiesn_norms'
 
-    points += velocitiesn * dt 
+    points += velocitiesn * dt
 
+    println("first points = $(points[:,1])")
 
 end
+
+scene = Makie.mesh(points', faces',color = :white, shading = false)
+Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
