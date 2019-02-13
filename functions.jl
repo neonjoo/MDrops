@@ -1,12 +1,3 @@
-using LinearAlgebra
-using CSV
-using JLD2
-using ElTopo
-
-include("./SurfaceGeometry/dt20L/src/Iterators.jl")
-include("./stabilization.jl")
-#using SurfaceGeometry
-
 function normal_theor(vertex, coefs)
     normal = [2*vertex[1] / coefs.a^2, 2*vertex[2] / coefs.b^2, 2*vertex[3] / coefs.c^2]
     return normalize(normal)

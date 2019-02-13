@@ -11,7 +11,7 @@ function FaceBasedDS(faces::Array{Int,2})
 
     vfaces = Array{Int}(undef,maximum(faces))
     neighs = Array{Int}(undef,size(faces)...)
-    
+
     for vi in 1:maximum(faces)
         vfaces[vi] = find_triangle_vertex(vi,faces)
     end
@@ -23,7 +23,7 @@ function FaceBasedDS(faces::Array{Int,2})
         t3 = find_other_triangle_edge(v1,v2,ti,faces)
         neighs[:,ti] = [t1,t2,t3]
     end
-    
+
     return FaceBasedDS(faces,neighs,vfaces)
 end
 
@@ -38,7 +38,7 @@ struct FaceVRingFB
 end
 
 FaceVRing(v::Int,ds::FaceBasedDS) = FaceVRingFB(v,ds.faces,ds.neighs,ds.vfaces)
-    
+
 function start(iter::FaceVRingFB)
     vface = iter.vfaces[iter.v]
     i0 = 1
@@ -52,7 +52,7 @@ function done(iter::FaceVRingFB,state::Tuple{Int,Int})
         return true
     else
         return false
-    end    
+    end
 end
 
 function next(iter::FaceVRingFB,state::Tuple{Int,Int})
@@ -71,7 +71,7 @@ function next(iter::FaceVRingFB,state::Tuple{Int,Int})
     if nexttri==-1
         error("The surface is not closed")
     end
-    
+
     return tri, (i+1,nexttri)
 end
 
@@ -110,7 +110,7 @@ function done(iter::DoubleVertexVRingFB,state::Tuple{Int,Int})
         return true
     else
         return false
-    end    
+    end
 end
 
 function next(iter::DoubleVertexVRingFB,state::Tuple{Int,Int})
@@ -130,7 +130,7 @@ function next(iter::DoubleVertexVRingFB,state::Tuple{Int,Int})
     if nexttri==-1
         error("The surface is not closed")
     end
-    
+
     return (face[cw]...,face[ccw]...), (i+1,nexttri)
 end
 
@@ -171,7 +171,7 @@ function done(iter::VertexVRingFB,state::Tuple{Int,Int})
         return true
     else
         return false
-    end    
+    end
 end
 
 function next(iter::VertexVRingFB,state::Tuple{Int,Int})
@@ -196,7 +196,7 @@ function next(iter::VertexVRingFB,state::Tuple{Int,Int})
     face = iter.faces[:,tri]
     cw = (face.==v)[[3,1,2]]
     vi, = face[cw]
-    
+
     return vi, (i+1,nexttri)
 end
 
@@ -225,7 +225,7 @@ function ConnectivityTable(faces,valence)
             push!(v1,v1i)
             push!(v2,v2i)
         end
-        
+
         vj = v2[1]
         connectivity[1,i] = vj
         for j in 2:size(v1,1)
