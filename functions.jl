@@ -1,7 +1,4 @@
 using LinearAlgebra
-using CSV
-using JLD2
-using ElTopo
 
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")

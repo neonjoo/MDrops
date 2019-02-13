@@ -2,7 +2,7 @@
 using Optim
 
 struct Zinchenko2013{T<:AbstractFloat}
-    gamma::AbstractFloat 
+    gamma::AbstractFloat
     C::AbstractFloat
     h2::Vector{T}
     ftol::AbstractFloat
@@ -28,7 +28,6 @@ function Zinchenko2013(points,faces,n;gamma=0.25,Cp=0.4,ftol=1e-6)
 
     Lambda = Array{Float64}(undef,size(points,2))
     for i in 1:size(points,2)
-
         normal = n[:,i]
 
         p0 = points[:,i]
@@ -37,7 +36,7 @@ function Zinchenko2013(points,faces,n;gamma=0.25,Cp=0.4,ftol=1e-6)
             vects = [vects (points[:,vi]-p0)]
         end
 
-        R = eye(3)
+        R = I + zeros(3,3)
         C,D,E = ZinchenkoDifertential!(vects,normal,R)
 
         A = [C D/2;D/2 E]
@@ -68,8 +67,8 @@ function F(points,faces,v,zc::Zinchenko2013)
 
     Cp = zc.C
     h2 = zc.h2
-    
-    s = 0    
+
+    s = 0
     for ti in 1:size(faces,2)
         v1,v2,v3 = faces[:,ti]
 
@@ -84,7 +83,7 @@ function F(points,faces,v,zc::Zinchenko2013)
         s += v2>v1 ? 4*(2/(h2[v2]+h2[v1]) - (h2[v2] + h2[v1])/2/a^4)^2 * xava^2 : 0
         s += v3>v2 ? 4*(2/(h2[v2]+h2[v3]) - (h2[v2] + h2[v3])/2/b^4)^2 * xbvb^2 : 0
         s += v1>v3 ? 4*(2/(h2[v1]+h2[v3]) - (h2[v1] + h2[v3])/2/c^4)^2 * xcvc^2 : 0
-        
+
         Cdelta = 1/4*sqrt(1 - 2* (a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
         A = 1/4/Cdelta/(a^2 + b^2 + c^2)^3 * ( a^2*(a^2 + b^2 + c^2) - a^4 - b^4 - c^4)
         B = 1/4/Cdelta/(a^2 + b^2 + c^2)^3 * ( b^2*(a^2 + b^2 + c^2) - a^4 - b^4 - c^4)
@@ -103,7 +102,7 @@ function gradF!(points,faces,v,storage,zc::Zinchenko2013)
     h2 = zc.h2
 
     storage[:,:] .= 0
-    
+
     for i in 1:size(faces,2)
         v1,v2,v3 = faces[:,i]
         a = norm(points[:,v2] - points[:,v1])
@@ -113,26 +112,26 @@ function gradF!(points,faces,v,storage,zc::Zinchenko2013)
         xava = dot(points[:,v2]-points[:,v1],v[:,v2]-v[:,v1])
         xbvb = dot(points[:,v3]-points[:,v2],v[:,v3]-v[:,v2])
         xcvc = dot(points[:,v1]-points[:,v3],v[:,v1]-v[:,v3])
-        
+
         Cdelta = 1/4*sqrt(1 - 2 * (a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
         A = 1/4/Cdelta/(a^2 + b^2 + c^2)^3 * ( a^2*(a^2 + b^2 + c^2) - a^4 - b^4 - c^4)
         B = 1/4/Cdelta/(a^2 + b^2 + c^2)^3 * ( b^2*(a^2 + b^2 + c^2) - a^4 - b^4 - c^4)
         C = 1/4/Cdelta/(a^2 + b^2 + c^2)^3 * ( c^2*(a^2 + b^2 + c^2) - a^4 - b^4 - c^4)
         DCdelta = -A*xava - B*xbvb - C*xcvc
 
-        
+
         ha2 = (h2[v2] + h2[v1])/2
         hb2 = (h2[v3] + h2[v2])/2
         hc2 = (h2[v1] + h2[v3])/2
-        
-        A_ = 2*Cp*DCdelta*A/Cdelta^2 
-        B_ = 2*Cp*DCdelta*B/Cdelta^2 
-        C_ = 2*Cp*DCdelta*C/Cdelta^2 
+
+        A_ = 2*Cp*DCdelta*A/Cdelta^2
+        B_ = 2*Cp*DCdelta*B/Cdelta^2
+        C_ = 2*Cp*DCdelta*C/Cdelta^2
 
         xa = points[:,v2] - points[:,v1]
         xb = points[:,v3] - points[:,v2]
         xc = points[:,v1] - points[:,v3]
-        
+
         storage[:,v1] += (A_ - 8*(1/ha2 - ha2/a^4)^2*xava)*xa - C_*xc
         storage[:,v2] += (B_ - 8*(1/hb2 - hb2/b^4)^2*xbvb)*xb - A_*xa
         storage[:,v3] += (C_ - 8*(1/hc2 - hc2/c^4)^2*xcvc)*xc - B_*xb
@@ -166,14 +165,15 @@ function stabiliseV2Optim!(points,faces,n,v,zc::Zinchenko2013)
         gradf = reshape(storage,size(points)...)
 
         gradF!(points,faces,vv,gradf,zc)
-        
+
         for i in 1:size(v,2)
             P = eye(3)-n[:,i]*n[:,i]'
             gradf[:,i] = P*gradf[:,i]
         end
     end
 
-    res = optimize(f,g!,v[:],BFGS())
+    println("optim:")
+    @time res = optimize(f,g!,v[:],ConjugateGradient())
     #v[:,:] = reshape(res.minimum, size(v)...)[:,:]
     v[:,:] = reshape(Optim.minimizer(res), size(v)...)[:,:]
 end
@@ -183,10 +183,10 @@ function stabiliseV2!(points,faces,n,v,zc::Zinchenko2013)
 
     gradF_v = Array{Float64}(undef,size(points)...)
     gradF!(points,faces,v,gradF_v,zc)
-    
+
     f = Array{Float64}(undef,size(points)...)
     for i in 1:size(points,2)
-        f[:,i] = - (eye(3) - n[:,i]*n[:,i]') * gradF_v[:,i] 
+        f[:,i] = - (eye(3) - n[:,i]*n[:,i]') * gradF_v[:,i]
     end
 
     Fs = Inf
@@ -208,12 +208,12 @@ function stabiliseV2!(points,faces,n,v,zc::Zinchenko2013)
 
         gradF!(points,faces,v,gradF_v,zc)
         for i in 1:size(points,2)
-            f[:,i] = -(eye(3) - n[:,i]*n[:,i]') * gradF_v[:,i]  
+            f[:,i] = -(eye(3) - n[:,i]*n[:,i]') * gradF_v[:,i]
         end
 
         gradF!(points,faces,f,gradF_f,zc)
         gradF!(points,faces,v-vp,gradF_dv,zc)
-                
+
         S = [dot(gradF_v[:],f[:]) + dot(gradF_f[:],v[:]), dot(gradF_dv[:],v[:]) + dot(gradF_v[:],v[:] - vp[:])]
         Q = [2*dot(gradF_f[:],f[:])   dot(gradF_f[:],v[:]-vp[:])+dot(gradF_dv[:],f[:]); dot(gradF_dv[:],f[:])+dot(gradF_v[:],v[:]-vp[:])   2*dot(gradF_dv[:],v[:]-vp[:])]
         ksi, eta = -Q\S
@@ -232,4 +232,3 @@ function stabiliseV2!(points,faces,n,v,zc::Zinchenko2013)
     #     warn("stabilistation used $step steps")
     # end
 end
-

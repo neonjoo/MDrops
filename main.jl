@@ -1,9 +1,18 @@
 using LinearAlgebra
 using CSV
 using JLD2
-using ElTopo
+#using ElTopo
 
-include("./SurfaceGeometry/dt20L/src/Iterators.jl")
+
+include("./SurfaceGeometry/dt20L/src/SurfaceGeometry2.jl")
+SG = SurfaceGeometry2
+
+#include("./SurfaceGeometry/dt20L/src/StabilisationMethods/stabilisationV2.jl")
+
+#include("./SurfaceGeometry/dt20L/src/Properties.jl")
+
+#include("./SurfaceGeometry/dt20L/src/Utils.jl")
+
 include("./stabilization.jl")
 include("./functions.jl")
 
@@ -13,7 +22,7 @@ include("./functions.jl")
 
 
 points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
-faces_csv = CSV.read("/home/lai/Dropbox/dokt/code/matlab/faces_sphere.csv", header=0)
+faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
 
 println("Loaded mesh")
 
@@ -30,7 +39,7 @@ H0 = [0, 0, 10]
 
 #H0 = 33 .* [0, 0, 1]
 #H0 = [0,0,0]
-mu = 30
+mu = 3
 eta = 1
 gamma = 6.9 * 10^-1
 
@@ -40,9 +49,9 @@ last_step = 0
 w = 2*pi/50
 t = 0
 dt = 0.01
-steps = 10
+steps = 40
 
-datadir="/home/lai/Dropbox/dokt/code/data/stikuts3"
+datadir="/home/lai/Dropbox/dokt/code/data/stabilized"
 # typical triangle side length
 scale = 0.1 * 4.9 * 10^-1
 
@@ -68,13 +77,10 @@ elparameters(scale) = Elparameters( # comments are some values that work fine
 par = elparameters(scale)
 
 
-trajectory = zeros(steps + 1, 3, size(points,2))
-trajectory[1,:,:] = points
 
 global points2 = copy(points)
 global faces2 = copy(faces)
 
-global normals, Ht, Hn, velocitiesn, velocitiesn_norms
 
 
 if !isdir("$datadir")
@@ -106,19 +112,32 @@ end
 expand = true
 reset_vmax = true
 
+
+
+
+
+function f1(normals,faces, points, velocitiesn)
+    @time make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
+end
+
+function f2(points, faces, normals, v, zc)
+    @time SG.stabilise!(points, faces, normals, v, zc)
+end
+
 for i in 1:steps
+    println("Step $i")
     global points2, faces2, t, w, H0
     global points = copy(points2)
     global faces = copy(faces2)
     global expand, reset_vmax
 
     #normals = zeros(3, size(points,2))
-    global normals = Normals(points, faces)
+    normals = Normals(points, faces)
 
-    global psi = PotentialSimple(points, faces, mu, H0; normals = normals)
-    global Ht = HtField(points, faces, psi, normals)
-    global Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
-    global Hn = normals .* Hn_norms'
+    psi = PotentialSimple(points, faces, mu, H0; normals = normals)
+    Ht = HtField(points, faces, psi, normals)
+    Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
+    Hn = normals .* Hn_norms'
 
     mup = mu
     # magnitudes squared of the normal force
@@ -127,64 +146,72 @@ for i in 1:steps
     Ht_2 = sum(Ht.^2, dims=1)
 
 
-    global tensorn = mup*(mup-1)/8/pi * Hn_2 + (mup-1)/8/pi * Ht_2
+    tensorn = mup*(mup-1)/8/pi * Hn_2 + (mup-1)/8/pi * Ht_2
 
     # make the force normal to surface
     #tensorn = normals .* tensorn
 
-    global velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
-
-    global velocitiesn = normals .* velocitiesn_norms'
 
 
+    zc = SG.Zinchenko2013(points, faces, normals)
+    println("velocity:")
+    @time velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
 
-    velocitiesn = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120);
+    velocitiesn = normals .* velocitiesn_norms'
 
-    velocitiesn = velocitiesn'
 
-    dt = 0.1 * scale / max(sqrt(sum(Vvecs.*Vvecs,2)))
+    #Vvecs = f1(normals,faces, points, velocitiesn)
+    velocitiesn = f2(points, faces, normals, velocitiesn, zc)
+
+
+    #velocitiesn = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120);
+
+    #velocitiesn = velocitiesn'
+
+    #dt = 0.1 * scale / max(sqrt(sum(Vvecs.*Vvecs,2)))
 
     points2 = points + velocitiesn * dt
+
     # trajectory[i + 1,:,:] = points2
 
 
 
     # ElTopo magic
     #actualdt,points2,faces2 = improvemeshcol(points,faces,points2,par)
-
-    if i % 1 == 0
-        data = [points2, faces2, (H0)]
-        println("Finished step $(last_step + i)")
-        @save "$datadir/data$(lpad(i + last_step,5,"0")).jld2" data
-
-    end
-
-
-    if reset_vmax
-        println("Resetting v0max")
-        global v0max = maximum(abs.(velocitiesn))
-        reset_vmax = false
-    end
-
-    vi = maximum(abs.(velocitiesn))
-
-    println("vi = $vi, v0max = $v0max, vi/v0max = $(vi/v0max)")
-
-    if vi/v0max < 0.05
-        println("Reached eqlb with vi=$vi")
-        global expand, reset_vmax
-        reset_vmax = true
-
-        if expand
-            println("expandasdas")
-            H0 += [0,0,0.5]
-        else
-            H0 -= [0,0,0.05]
-        end
-        if H0[3] >= 3.5
-            global expand = false
-        end
-    end
+    #
+    # if i % 1 == 0
+    #     data = [points2, faces2, (H0)]
+    #     println("Finished step $(last_step + i)")
+    #     @save "$datadir/data$(lpad(i + last_step,5,"0")).jld2" data
+    #
+    # end
+    #
+    #
+    # if reset_vmax
+    #     println("Resetting v0max")
+    #     global v0max = maximum(abs.(velocitiesn))
+    #     reset_vmax = false
+    # end
+    #
+    # vi = maximum(abs.(velocitiesn))
+    #
+    # println("vi = $vi, v0max = $v0max, vi/v0max = $(vi/v0max)")
+    #
+    # if vi/v0max < 0.05
+    #     println("Reached eqlb with vi=$vi")
+    #     global expand, reset_vmax
+    #     reset_vmax = true
+    #
+    #     if expand
+    #         println("expandasdas")
+    #         H0 += [0,0,0.5]
+    #     else
+    #         H0 -= [0,0,0.05]
+    #     end
+    #     if H0[3] >= 3.5
+    #         global expand = false
+    #     end
+    # end
 
 
     t += dt
@@ -207,7 +234,6 @@ end
 #     Ht_teor[3,i] = 3 * norm(H0) * r_xy / r * r_xy / r / (mu+2)
 # end
 
-
 using PyPlot
 pygui()
 
@@ -225,7 +251,7 @@ ax[:scatter](x,y,z, s=2,color="k")
 #ax[:quiver](x,y,z,fx,fy,fz, length=0.2, arrow_length_ratio=0.5)
 #ax[:set_title]("Normal forces")
 
-ax[:quiver](x,y,z,vnx,vny,vnz, length=5, arrow_length_ratio=0.5)
+#ax[:quiver](x,y,z,vnx,vny,vnz, length=5, arrow_length_ratio=0.5)
 #ax[:set_title]("Normal velocities")
 
 #ax[:quiver](x,y,z,Hnx,Hny,Hnz, length=0.3, arrow_length_ratio=0.5, color="red")
