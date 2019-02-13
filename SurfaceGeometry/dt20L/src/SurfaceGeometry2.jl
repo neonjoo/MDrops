@@ -1,4 +1,4 @@
-module SurfaceGeometry
+module SurfaceGeometry2
 
 using LinearAlgebra
 eye(n) = Matrix(1.0I, n, n)
@@ -19,20 +19,11 @@ include("StabilisationMethods/stabilisationV1.jl")
 include("StabilisationMethods/stabilisationV2.jl")
 include("StabilisationMethods/stabilisationV3.jl")
 include("StabilisationMethods/Stabilisation.jl")
-export stabilise
+
+export stabilise, stabiliseV2!, ZinchenkoDifertential!, Zinchenko2013
 
 ### Just redirecting
 #using ElTopo
 #export Elparameters, improvemesh, improvemeshcol
 
 end # module
-
-
-
-
-
-
-
-
-
-
