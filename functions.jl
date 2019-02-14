@@ -1,12 +1,9 @@
-<<<<<<< HEAD
-=======
 using LinearAlgebra
 
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 #using SurfaceGeometry
 
->>>>>>> b8199585d6d47db324e310b57d5a6749b875dc76
 function normal_theor(vertex, coefs)
     normal = [2*vertex[1] / coefs.a^2, 2*vertex[2] / coefs.b^2, 2*vertex[3] / coefs.c^2]
     return normalize(normal)

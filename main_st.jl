@@ -1,7 +1,6 @@
 using LinearAlgebra
 using CSV
-using Makie
-using
+using Makie 
 #using SurfaceGeometry
 #using JLD2
 #using ElTopo
