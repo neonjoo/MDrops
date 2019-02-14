@@ -1,6 +1,7 @@
 using LinearAlgebra
 using CSV
-using Makie 
+using Makie
+using StatsBase
 #using SurfaceGeometry
 #using JLD2
 #using ElTopo
@@ -22,7 +23,7 @@ faces = convert(Array, faces_csv)
 points = Array{Float64}(points')
 faces = Array{Int64}(faces')
 edges = make_edges(faces)
-
+connectivity = make_connectivity(edges)
 
 # H0 = [0, 0, 10]
 # eta = 1
@@ -49,18 +50,17 @@ last_step = 0
 
 w = 2*pi/50
 t = 0
-steps = 25
+steps = 10
 
 
-normals0 = Normals(points, faces)
+normals = Normals(points, faces)
 for i in 1:steps
     println("time step $(i)")
 
-    global points, faces
+    global points, faces, normals
     #global points2
 
-
-    normals = make_normals_spline(points, close_edges, edges, normals)
+    (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
     psi = PotentialSimple(points, faces, mu, H0; normals = normals)
     #psi2 = PotentialSimple(points2, faces, mu, H0; normals = normals2)
     Ht = HtField(points, faces, psi, normals)
@@ -109,7 +109,7 @@ for i in 1:steps
 
 end
 
-scene = Makie.mesh(points', faces',color = :white, shading = false,visible = false)
+scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
 #scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
 #Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)

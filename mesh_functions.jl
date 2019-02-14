@@ -1,4 +1,55 @@
+function make_pc(CDE::Array{Float64,2})
+# returns principal curvatures k1, k2 at the vertices
+# with locally fitted paraboloids z = Cx^2 + Dxy + Ey^2
+# k1 > k2
+
+    C = CDE[1,:]
+    D = CDE[2,:]
+    E = CDE[3,:]
+
+    k1 = -C - E + sqrt.(C.^2 + D.^2 - 2*C.*E + E.^2)
+    k2 = -C - E - sqrt.(C.^2 + D.^2 - 2*C.*E + E.^2)
+
+    return k1,k2
+end
+
+function make_pc_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
+# returns principal curvatures k1, k2 at the point ( x , y , z(x,y) )
+# on a locally fitted paraboloid z = Cx^2 + Dxy + Ey^2
+# k1 > k2 (hopefully)
+
+    C = CDE_local[1]
+    D = CDE_local[2]
+    E = CDE_local[3]
+
+    magN = 1 + (2*C*x + D*y)^2 + (D*x + 2*E*y)^2; # a repeating value
+
+    k2 = -1/magN^2 *
+        (
+        C*sqrt(magN) + E*sqrt(magN) - C*D^2*x^2*sqrt(magN) + 4*C^2*E*x^2*sqrt(magN) -
+        D^3*x*y*sqrt(magN) + 4*C*D*E*x*y*sqrt(magN) - D^2*E*y^2*sqrt(magN) + 4*C*E^2*y^2*sqrt(magN) +
+        0.5*sqrt(
+            4*(D^2 - 4*C*E)*(1 + 4*C^2*x^2 + 4*C*D*x*y + 4*D*E*x*y + 4*E^2*y^2 + D^2*(x^2 + y^2))^2 +
+            4*(1 + (2*C*x + D*y)^2 + (D*x + 2*E*y)^2) * (E + 4*C^2*E*x^2 - D^3*x*y - D^2*E*y^2 + C*(1 - D^2*x^2 + 4*D*E*x*y + 4*E^2*y^2))^2
+            )
+        )
+
+    k1 = -1/magN^2 *
+        (
+        C*sqrt(magN) + E*sqrt(magN) - C*D^2*x^2*sqrt(magN) + 4*C^2*E*x^2*sqrt(magN) -
+        D^3*x*y*sqrt(magN) + 4*C*D*E*x*y*sqrt(magN) - D^2*E*y^2*sqrt(magN) + 4*C*E^2*y^2*sqrt(magN) -
+        0.5*sqrt(
+            4*(D^2 - 4*C*E)*(1 + 4*C^2*x^2 + 4*C*D*x*y + 4*D*E*x*y + 4*E^2*y^2 + D^2*(x^2 + y^2))^2 +
+            4*(1 + (2*C*x + D*y)^2 + (D*x + 2*E*y)^2) * (E + 4*C^2*E*x^2 - D^3*x*y - D^2*E*y^2 + C*(1 - D^2*x^2 + 4*D*E*x*y + 4*E^2*y^2))^2
+            )
+        )
+
+    return k1,k2
+end
+
 function to_local(r::Array{Float64,1},normal::Array{Float64,1})
+    # rotate a vector to local coordinate system
+    # with z axis along a normal
     cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
     cost = normal[3]
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
@@ -13,6 +64,8 @@ function to_local(r::Array{Float64,1},normal::Array{Float64,1})
 end
 
 function to_global(rprim::Array{Float64,1},normal::Array{Float64,1})
+    # rotate a vector back to global coordinates
+    # from a local coordinate system along a normal
     cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
     cost = normal[3]
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
@@ -55,7 +108,7 @@ function make_connectivity(edges)
 # find adjescent vertices
     valence = maximum(StatsBase.counts(edges)) # max number of adjescent vertices
     nvertices = maximum(edges)
-    connectivity = zeros(Int64, valence, number_of_vertices) # create empty array padded with zeros
+    connectivity = zeros(Int64, valence, nvertices) # create empty array padded with zeros
     for vert = 1:nvertices
         inds = findall(x -> vert in x, edges)
         for j = 1:size(inds,1)
@@ -89,17 +142,18 @@ function make_normals_spline(points, connectivity, edges, normals0;
     normals = copy(normals0)
     #outer iterations
     for m = 1:max_iters_outer
-        println(m)
+        #println(m)
         normalsp = copy(normals) #previous
         for i = 1:size(points,2)
             #inner iterations
             for k = 1:max_iters_inner
+
                 # get edges close to vertex
                 # ev = 3xv matrix containing edge vectors from i-th to all adjecent points
                 # ev is padded with 0-os, where adjescent points < max adjescent points = v
                 ev = zeros(Float64,3,size(connectivity,1))
                 edge_normal_sum = zeros(Float64,3,size(connectivity,1))
-                for (ind, j) in enumerate(connectivity[:,1])
+                for (ind, j) in enumerate(connectivity[:,i])
                     # iterate through close points j
                     if j == 0
                         break
@@ -196,7 +250,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
                             2*CDE[3,i]*ev[2,:].*ev[3,:] + ev[2,:])
                             ))
 
-
+                gradPhi[3] = 0.
                # add the normal coupling term to get GradPhi
                 #this fake gradPhi += vec(2*Cs*sum( sum(ev .* edge_normal_sum,dims=2) ./ sum(ev .* ev,dims=2) .* ev, dims=1))
                #gradPhi += 2*Cs*sum( sum(ev .* edge_normal_sum,dims=1) ./ sum(ev .* ev,dims=1) .* ev, dims=2)
@@ -218,16 +272,24 @@ function make_normals_spline(points, connectivity, edges, normals0;
 
                P = normals[:,i] - 0.05*gradPhi
                normals[:,i] = P ./ norm(P)
-               #println(norm(gradPhi))
+
+               # println("edge number = ", i)
+               # println("CDE = ", CDE[:,i])
+               # println("gradPhi = ",gradPhi)
+               # println("gradPhinorm = ",norm(gradPhi))
+               # #println("Phi = ",norm(gradPhi))
+               # readline(stdin)
+
                if norm(gradPhi) < eps_inner
                    break
                end
             end
         end
-        println("outer iters:")
-        println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+        #println("outer iters:")
+        #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
+            println("paraboloid fit converged")
             break
         end
     end
