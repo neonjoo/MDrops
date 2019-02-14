@@ -138,6 +138,7 @@ for i in 1:steps
     Ht = HtField(points, faces, psi, normals)
     Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
     Hn = normals .* Hn_norms'
+    
 
     mup = mu
     # magnitudes squared of the normal force
