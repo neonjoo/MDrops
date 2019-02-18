@@ -2,8 +2,9 @@ using LinearAlgebra
 using CSV
 using Makie
 using StatsBase
-#using SurfaceGeometry
+using Optim
 #using JLD2
+#using SurfaceGeometry
 #using ElTopo
 #using PyPlot
 #include("./SurfaceGeometry/dt20L/src/Iterators.jl")
@@ -12,6 +13,7 @@ include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 include("./functions.jl")
 include("./mesh_functions.jl")
+include("./sandbox_lang.jl")
 
 points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
 faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
@@ -21,10 +23,12 @@ println("Loaded mesh")
 points = convert(Array, points_csv)
 faces = convert(Array, faces_csv)
 points = Array{Float64}(points')
+points1 = copy(points)
+points2 = copy(points)
 faces = Array{Int64}(faces')
+faces2 = copy(faces)
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
-
 # H0 = [0, 0, 10]
 # eta = 1
 # mu = 30
@@ -54,11 +58,12 @@ steps = 10
 
 
 normals = Normals(points, faces)
-for i in 1:steps
-    println("time step $(i)")
+for iter in 1:steps
+    println("time step $(iter)")
 
-    global points, faces, normals
+    global points, points1, points2, faces, faces2, normals, edges, connectivity
     #global points2
+
 
     (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
     psi = PotentialSimple(points, faces, mu, H0; normals = normals)
@@ -94,11 +99,6 @@ for i in 1:steps
     velocities = velocitiesn
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
-    #minl = minimum(make_edge_lens(points,edges))
-    #minl2 = minimum(make_edge_lens(points2,edges))
-    #maxv = maximum(sum(sqrt.(velocities.^2),dims=1))
-    #maxv2 = maximum(sum(sqrt.(velocities2.^2),dims=1))
-    #dt = 0.01
     dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     #dt2 = 0.4*minl2/maxv2
     println("dt = $(dt)")
@@ -108,8 +108,22 @@ for i in 1:steps
     #points2 += velocities2 * dt
 
 end
+(normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
+points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=1000)
+for i in 1:size(points,2)
+    for j in 1:size(points,2)
+        edges = make_edges(faces2)
+        connectivity = make_connectivity(edges)
+        println(i," ",j)
+        flip_connectivity!(faces2,i,j,points,connectivity)
+    end
+end
+edges = make_edges(faces2)
+connectivity = make_connectivity(edges)
+(normals2, CDE2) = make_normals_spline(points1, connectivity, edges, normals)
+points2 = active_stabilize(points1,faces2,CDE2,connectivity,normals2;maxiters=100)
 
-scene = Makie.mesh(points0', faces',color = :white, shading = false,visible = false)
-Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
-scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
-Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)
+# scene = Makie.mesh(points0', faces',color = :white, shading = false,visible = false)
+# Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
+# scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
+# Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)

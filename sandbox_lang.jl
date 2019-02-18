@@ -41,7 +41,7 @@ function make_edges(faces)
 end
 
 
-function test_flip(i::Int64, j::Int64, vertices, faces, connectivity)
+function test_flip(i::Int, j::Int, vertices, faces, connectivity)
     # checks whether edge between i,j vertices should be flipped
     # according to Zinchenko (2013)
 
@@ -51,14 +51,18 @@ function test_flip(i::Int64, j::Int64, vertices, faces, connectivity)
 
     # whether after flip each would have at least 5 neighbors
     if i_num <= 5 || j_num <= 5
-        return false
+        println("<5 vertices")
+        return false, 0, 0
     end
 
     xi, xj = vertices[:,i], vertices[:,j]
 
     common = intersect(connectivity[:,i], connectivity[:,j])
     common = filter(x -> x>0, common)
-
+    if length(common) != 2
+        println("common = ", common)
+        return false, 0, 0
+    end
     k, m = common[1], common[2]
     xk, xm = vertices[:,k], vertices[:,m]
 
@@ -69,15 +73,21 @@ function test_flip(i::Int64, j::Int64, vertices, faces, connectivity)
     d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
 
     if norm(xk - xm)^2 < d
-        return true
+        return true, k, m
     end
 
 end
 
 
-function flip_connectivity!(i, j, k, m, faces)
+function flip_connectivity!(faces, i, j, vertices, connectivity)
     # adjusts faces to the i-j  ->  k-m edge flip
-        
+    shouldflip, k, m = test_flip(i, j, vertices, faces, connectivity)
+
+    if !shouldflip
+        println("no flips made")
+        return nothing
+    end
+
     for s in 1:size(faces,2)
         if length(intersect([i,j,k], faces[:,s])) == 3
             row = findfirst(x-> x==j, faces[:,s])
@@ -89,7 +99,7 @@ function flip_connectivity!(i, j, k, m, faces)
         end
     end
 
-    return faces
+    #return faces
 
 end
 
