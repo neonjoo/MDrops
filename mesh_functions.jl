@@ -13,6 +13,18 @@ function make_pc(CDE::Array{Float64,2})
     return k1,k2
 end
 
+function make_dS(points,faces)
+    dS = zeros(Float64,size(points,2))
+    for i in 1:size(faces,2)
+        v1,v2,v3 = faces[:,i]
+        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1]))/2
+        dS[v1] += area/3
+        dS[v2] += area/3
+        dS[v3] += area/3
+    end
+    return dS
+end
+
 function make_pc_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
 # returns principal curvatures k1, k2 at the point ( x , y , z(x,y) )
 # on a locally fitted paraboloid z = Cx^2 + Dxy + Ey^2
@@ -117,6 +129,21 @@ function make_connectivity(edges)
         end
     end
     return connectivity
+end
+
+function make_closefaces(faces)
+# find adjescent triangles
+    valence = maximum(StatsBase.counts(faces)) # max number of adjescent vertices
+    nvertices = maximum(faces)
+    closefaces = zeros(Int64, valence, nvertices) # create empty array padded with zeros
+    for vert = 1:nvertices
+        inds = findall(x -> vert in x, faces)
+        for j = 1:size(inds,1)
+            # write the other value that is not vert
+            closefaces[j,vert] = inds[j][2]
+        end
+    end
+    return closefaces
 end
 
 function make_edge_lens(points,edges)
@@ -295,3 +322,175 @@ function make_normals_spline(points, connectivity, edges, normals0;
     end
     return normals, CDE
 end
+
+function make_min_edges(points,connectivity)
+# finds the length of the smallest of adjecscent edges to a point
+    min_edges = ones(Float64,size(points,2)) * 1e200
+    for i = 1:size(points,2)
+        for j in connectivity[:,i]
+            if j == 0
+                break
+            end
+            #edge vector length
+            evl = norm(points[:,j] - points[:,i])
+            if min_edges[i] > evl
+                min_edges[i] = evl
+            end
+        end
+    end
+    return min_edges
+end
+
+function project_on_drop(points,CDE,normals,r0)
+# projects a point r0 on the closet fitted paraboloid
+    i = argmin(sum((points .- r0).^2,dims=1))[2]
+    #minval = minimum(sum((points .- r0).^2,dims=1))
+    #i = findfirst(x->x==minval,sum((points .- r0).^2,dims=1))[2]
+    #println("closest i = ", i)
+
+    r = points[:,i]
+
+    r0 = to_local(r0 - r, normals[:,i])
+
+    f(x) = (x[1]-r0[1])^2 + (x[2]-r0[2])^2 +
+            (CDE[1,i]*x[1]^2 + CDE[2,i]*x[1]*x[2] + CDE[3,i]*x[2]^2 - r0[3])^2
+    x0 = [r0[1],r0[2]]
+
+    res = Optim.optimize(f,x0,Optim.Options(f_tol=1.e-10))
+    #println(res)
+    x1 = Optim.minimizer(res)[1]
+    x2 = Optim.minimizer(res)[2]
+    r0 = [x1,x2,CDE[1,i]*x1^2 + CDE[2,i]*x1*x2 + CDE[3,i]*x2^2]
+    #println(r0)
+    #println(x0)
+
+    r0 = to_global(r0,normals[:,i]) + r
+    return r0
+end
+
+function active_stabilize(points0,faces,CDE,connectivity,normals;
+                            R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000)
+# actively rearange vertices on a surfaces given by fitted paraboloids
+# as per Zinchenko(2013)
+    points = copy(points0)
+
+    closefaces = make_closefaces(faces)
+    dS = make_dS(points,faces)
+    k1,k2 = make_pc(CDE)
+    LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+    K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+    hsq = K * LAMBDA.^(-gamma)
+
+    for iter = 1:maxiters
+        println(iter)
+        gradE = make_gradE(points,faces,closefaces,hsq; p=p,r=r)
+        delta = 0.1 * minimum(make_min_edges(points,connectivity) ./ sum(sqrt.(gradE.^2),dims=1))
+
+        #println("dPoints= ",delta*maximum(sum(sqrt.(gradE.^2),dims=1)))
+        println("E = ", make_E(points,faces,hsq; p=p,r=r))
+
+
+        points = points - delta * gradE
+
+        #project points on the drop
+        for i = 1:size(points,2)
+            #println(i)
+            points[:,i] = project_on_drop(points0,CDE,normals,points[:,i])
+            #println(points[:,i])
+            #readline(stdin)
+        end
+
+        # recalculate the mesh parameters
+        dS = make_dS(points,faces)
+        k1,k2 = make_pc(CDE)
+        for i = 1:size(points,2)
+            r0 = points[:,i]
+            minind = argmin(sum((points0 .- r0).^2,dims=1))[2]
+            r0 = to_local(r0-points0[:,minind],normals[:,minind])
+            k1[i],k2[i] =  make_pc_local(CDE[:,i],r0[1],r0[2])
+        end
+        LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+        K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+        hsq = K * LAMBDA.^(-gamma)
+
+    end
+    return points
+end
+
+function make_gradE(points,faces,closefaces,hsq; p=50,r=100)
+    Cet = sqrt(3) / 12 # target Cdelta value
+    Nvertices = size(points, 2)
+    gradE = zeros(3,Nvertices)
+    for i = 1:Nvertices
+        for faceind in closefaces[:,i]
+            if faceind == 0
+                break
+            end
+        # order radius vectors x so that first one points to vertex i
+        iind = findfirst(x->x==i,faces[:,faceind])
+        x1 = points[:,faces[iind,faceind]]
+        x2 = points[:,faces[iind%3+1,faceind]]
+        x3 = points[:,faces[(iind+1)%3+1,faceind]]
+
+        hsq1 = hsq[faces[iind,faceind]]
+        hsq2 = hsq[faces[iind%3+1,faceind]]
+        hsq3 = hsq[faces[(iind+1)%3+1,faceind]]
+
+        a = norm(x2 - x1)
+        b = norm(x3 - x2)
+        c = norm(x1 - x3)
+
+        Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
+        x12 = x2 - x1
+        x13 = x3 - x1
+        h12sq = 0.5*(hsq1 + hsq2)
+        h13sq = 0.5*(hsq1 + hsq3)
+
+        dCdx = 1/(4*Cdelta*(a^2 + b^2 + c^2)^3) * (
+                -(a^4 + b^4 + c^4 - (a^2 + b^2 + c^2)*a^2) * x12
+                -(a^4 + b^4 + c^4 - (a^2 + b^2 + c^2)*c^2) * x13
+                )
+
+        gradE[:,i] = gradE[:,i] +
+            r*(Cet/Cdelta)^(r-1) * Cet * (-1/Cdelta^2) * dCdx +
+            0.5*p*( 0.5*( dot(x12,x12)/h12sq + h12sq/dot(x12,x12)) )^(p-1) *(-1)* (1/h12sq - h12sq/dot(x12,x12)^2) * x12 +
+            0.5*p*( 0.5*( dot(x13,x13)/h13sq + h13sq/dot(x13,x13)) )^(p-1) *(-1)* (1/h13sq - h13sq/dot(x13,x13)^2) * x13
+        end
+    end
+    return gradE
+end
+
+function make_E(points,faces,hsq; p=50,r=100)
+    Cet = sqrt(3) / 12 # target Cdelta value
+    Ntriangles = size(faces, 2)
+
+    E = 0
+    for i = 1:Ntriangles
+        x1 = points[:,faces[1,i]]
+        x2 = points[:,faces[2,i]]
+        x3 = points[:,faces[3,i]]
+
+        hsq1 = hsq[faces[1,i]]
+        hsq2 = hsq[faces[2,i]]
+        hsq3 = hsq[faces[3,i]]
+
+        a = norm(x2 - x1)
+        b = norm(x3 - x2)
+        c = norm(x1 - x3)
+
+        hsqa = 0.5*( hsq2 + hsq1 )
+        hsqb = 0.5*( hsq3 + hsq2 )
+        hsqc = 0.5*( hsq1 + hsq3 )
+
+        Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
+
+        E += (Cet/Cdelta)^r +
+            0.5 * (0.5 * (a^2/hsqa + hsqa/a^2) )^p +
+            0.5 * (0.5 * (b^2/hsqb + hsqb/b^2) )^p +
+            0.5 * (0.5 * (c^2/hsqc + hsqc/c^2) )^p
+
+    end
+    return E
+end
+
+#gradE = make_gradE(points,faces,closefaces,hsq; p=50,r=100)

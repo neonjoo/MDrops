@@ -33,7 +33,7 @@ connectivity = make_connectivity(edges)
 #
 # dt = 0.01
 # steps = 50
-points = points .* (4.9 * 10^-1)
+points = points #.* (4.9 * 10^-1)
 #points2 = copy(points)
 
 H0 = [0, 0, 10]
@@ -94,12 +94,12 @@ for i in 1:steps
     velocities = velocitiesn
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
-    minl = minimum(make_edge_lens(points,edges))
+    #minl = minimum(make_edge_lens(points,edges))
     #minl2 = minimum(make_edge_lens(points2,edges))
-    maxv = maximum(sum(sqrt.(velocities.^2),dims=1))
+    #maxv = maximum(sum(sqrt.(velocities.^2),dims=1))
     #maxv2 = maximum(sum(sqrt.(velocities2.^2),dims=1))
     #dt = 0.01
-    dt = 0.4*minl/maxv
+    dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     #dt2 = 0.4*minl2/maxv2
     println("dt = $(dt)")
     #println("dt2 = $(dt2)")
@@ -109,7 +109,7 @@ for i in 1:steps
 
 end
 
-scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
+scene = Makie.mesh(points0', faces',color = :white, shading = false,visible = false)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
-#scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
-#Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)
+scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
+Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)
