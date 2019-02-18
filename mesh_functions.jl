@@ -369,9 +369,10 @@ function project_on_drop(points,CDE,normals,r0)
 end
 
 function active_stabilize(points0,faces,CDE,connectivity,normals;
-                            R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000)
+    deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000)
 # actively rearange vertices on a surfaces given by fitted paraboloids
 # as per Zinchenko(2013)
+    println("active stabilization")
     points = copy(points0)
 
     closefaces = make_closefaces(faces)
@@ -381,13 +382,20 @@ function active_stabilize(points0,faces,CDE,connectivity,normals;
     K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
     hsq = K * LAMBDA.^(-gamma)
 
+    no_improvement = true
+    # initiallize improvement criteria
+    xij = make_edge_lens(points,edges)
+    hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
+
+    Sc0 = maximum(xij./hij) / minimum(xij./hij)
+    Cdelta_min0 = minimum(make_Cdeltas(points, faces))
     for iter = 1:maxiters
-        println(iter)
+        #println(iter)
         gradE = make_gradE(points,faces,closefaces,hsq; p=p,r=r)
-        delta = 0.1 * minimum(make_min_edges(points,connectivity) ./ sum(sqrt.(gradE.^2),dims=1))
+        delta = deltakoef * minimum(make_min_edges(points,connectivity) ./ sum(sqrt.(gradE.^2),dims=1))
 
         #println("dPoints= ",delta*maximum(sum(sqrt.(gradE.^2),dims=1)))
-        println("E = ", make_E(points,faces,hsq; p=p,r=r))
+        #println("E = ", make_E(points,faces,hsq; p=p,r=r))
 
 
         points = points - delta * gradE
@@ -413,6 +421,29 @@ function active_stabilize(points0,faces,CDE,connectivity,normals;
         K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
         hsq = K * LAMBDA.^(-gamma)
 
+        if iter < checkiters
+            xij = make_edge_lens(points,edges)
+            hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
+
+            Sc = maximum(xij./hij) / minimum(xij./hij)
+            Cdelta_min = minimum(make_Cdeltas(points, faces))
+
+            if Sc < 0.75*Sc0 && Cdelta_min > 1.15*Cdelta_min0
+                no_improvement = false
+            end
+        end
+
+        if iter == checkiters
+            if no_improvement == true
+                println("no significant improvement achieved")
+                println("reversing changes")
+                points = points0
+                break
+            else
+                println("improvement detected in first ", checkiters, " iterations")
+                println("itereting for ", maxiters - checkiters, " more iterations")
+            end
+        end
     end
     return points
 end
@@ -493,4 +524,18 @@ function make_E(points,faces,hsq; p=50,r=100)
     return E
 end
 
-#gradE = make_gradE(points,faces,closefaces,hsq; p=50,r=100)
+function make_Cdeltas(points, faces)
+    Nfaces = size(faces,2)
+    Cdeltas = zeros(Nfaces)
+
+    for i in 1:Nfaces
+
+
+        a = norm(points[:,faces[2,i]] - points[:,faces[1,i]])
+        b = norm(points[:,faces[3,i]] - points[:,faces[2,i]])
+        c = norm(points[:,faces[1,i]] - points[:,faces[3,i]])
+
+        Cdeltas[i] = 0.25*sqrt( 1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2 )
+    end
+    return Cdeltas
+end

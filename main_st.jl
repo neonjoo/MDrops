@@ -109,19 +109,19 @@ for iter in 1:steps
 
 end
 (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
-points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=1000)
-for i in 1:size(points,2)
-    for j in 1:size(points,2)
-        edges = make_edges(faces2)
-        connectivity = make_connectivity(edges)
-        println(i," ",j)
-        flip_connectivity!(faces2,i,j,points,connectivity)
-    end
-end
-edges = make_edges(faces2)
-connectivity = make_connectivity(edges)
-(normals2, CDE2) = make_normals_spline(points1, connectivity, edges, normals)
-points2 = active_stabilize(points1,faces2,CDE2,connectivity,normals2;maxiters=100)
+points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=100)
+# for i in 1:size(points,2)
+#     for j in 1:size(points,2)
+#         edges = make_edges(faces2)
+#         connectivity = make_connectivity(edges)
+#         println(i," ",j)
+#         flip_connectivity!(faces2,i,j,points,connectivity)
+#     end
+# end
+# edges = make_edges(faces2)
+# connectivity = make_connectivity(edges)
+# (normals2, CDE2) = make_normals_spline(points1, connectivity, edges, normals)
+# points2 = active_stabilize(points1,faces2,CDE2,connectivity,normals2;maxiters=100)
 
 # scene = Makie.mesh(points0', faces',color = :white, shading = false,visible = false)
 # Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
