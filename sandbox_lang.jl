@@ -41,57 +41,68 @@ function make_edges(faces)
 end
 
 
-function flip_edges!(faces, vertices, connectivity)
+function flip_edges!(faces, connectivity, vertices)
+    # flip edges to improve mesh, updates "faces" and "connectivity"
+
     maxx = size(vertices, 2)
+    global continue_flip = true
 
-    for i in 1:maxx
-        i_num = length(filter(x -> x>0, connectivity[:,i]))
-        if i_num <= 5
-            #println("skipped $i-vertex: <=5 neighs")
-            continue
-        end
-
-        for j in i+1:maxx
-            if !(j in connectivity[:,i])
-                #println("$i -/- $j !")
+    while continue_flip
+        global continue_flip
+        continue_flip = false
+        #println("------------------- startelino")
+        for i in 1:maxx
+            #println("---------- vertex $i")
+            # num of i-th vertex neighbors
+            i_num = length(filter(x -> x>0, connectivity[:,i]))
+            if i_num <= 5
                 continue
             end
 
-            j_num = length(filter(x -> x>0, connectivity[:,j]))
-            if j_num <= 5
-                #println("vertex $i: skipped $j-vertex: <=5 neighs")
-                continue
+            for j in i+1:maxx
+                if !(j in connectivity[:,i])
+                    continue
+                end
+
+                j_num = length(filter(x -> x>0, connectivity[:,j]))
+                if j_num <= 5
+                    continue
+                end
+
+                xi, xj = vertices[:,i], vertices[:,j]
+
+                common = intersect(connectivity[:,i], connectivity[:,j])
+                common = filter(x -> x>0, common)
+
+                if length(common) != 2
+                    continue
+                end
+
+                k, m = common[1], common[2]
+                xk, xm = vertices[:,k], vertices[:,m]
+
+                kc = find_circumcenter(xi, xj, xk)
+                mc = find_circumcenter(xi, xj, xm)
+
+                # a threshold value for flipping (Zinchenko2013)
+                d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
+
+                if norm(xk - xm)^2 < d
+                    #println("--------------------- flippening $i--$j to $k--$m")
+                    #readline(stdin)
+                    flip_connectivity!(faces, connectivity, i, j, k, m)
+                    continue_flip = true
+                end
+                #println("ended $i-$j,   $continue_flip")
+            end # end j for
+            if continue_flip
+                #println("breakened")
+                #readline(stdin)
+                break
             end
+        end # end i for
 
-
-            xi, xj = vertices[:,i], vertices[:,j]
-
-            common = intersect(connectivity[:,i], connectivity[:,j])
-            common = filter(x -> x>0, common)
-            if length(common) != 2
-                #println("skipping $i--$j, common len not 2, common = $common")
-                continue
-            end
-            #println("$i--$j common = $common")
-            k, m = common[1], common[2]
-            xk, xm = vertices[:,k], vertices[:,m]
-
-            kc = find_circumcenter(xi, xj, xk)
-            mc = find_circumcenter(xi, xj, xm)
-
-            # a threshold value
-            d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
-
-            if norm(xk - xm)^2 < d
-                println("------------------------------------------------------------------- flipped $i--$j to $k--$m")
-
-                readline(stdin)
-                flip_connectivity!(faces, connectivity, i, j, k, m)
-            end
-
-        end # end j for
-
-    end # end i for
+    end # end while
 
 end # end function
 
@@ -99,36 +110,49 @@ end # end function
 function flip_connectivity!(faces, connectivity, i, j, k, m)
     # adjusts faces & connectivity to the i--j  ->  k--m edge flip
 
+    found_one, found_two = false, false
     for s in 1:size(faces,2)
         # finds first(and only) column where all 3 indices appear and adjusts indices
-        println("$s: $i $j $k // $(faces[:,s])")
-        readline(stdin)
 
-        if length(intersect([i,j,k], faces[:,s])) == 3
-            row = findfirst(x-> x==j, faces[:,s])
-            faces[row, s] = m
+        if !found_one
+            if length(intersect([i,j,k], faces[:,s])) == 3
+                row = findfirst(x-> x==j, faces[:,s])
+                faces[row, s] = m
+                found_one = true
+            end
+        end
 
-        elseif length(intersect([i,m,j], faces[:,s])) == 3
-            row = findfirst(x-> x==i, faces[:,s])
-            faces[row, s] = k
+        if !found_two
+            if length(intersect([i,m,j], faces[:,s])) == 3
+                row = findfirst(x-> x==i, faces[:,s])
+                faces[row, s] = k
+                found_two = true
+            end
+        end
+
+        if found_one && found_two
+            break
         end
 
     end # end s for
 
+
     for s in 1:size(connectivity,2)
         if length(intersect([j,k,m], connectivity[:,s])) == 3
-            println("updatalino le conn table")
+            # row of j in i-th column etc.
             row_j_in_i = findfirst(x-> x==j, connectivity[:,s])
             row_i_in_j = findfirst(x-> x==i, connectivity[:,j])
             row_k_in_m = findfirst(x-> x==0, connectivity[:,m])
             row_m_in_k = findfirst(x-> x==0, connectivity[:,k])
 
-            connectivity[row_j_in_i, i] = 0
-            connectivity[row_i_in_j, j] = 0
+            # cut the i--j edge in "connectivity" by sliding column values up 1 row, placing 0 in the end
+            connectivity[row_i_in_j:end, j] = [connectivity[row_i_in_j+1:end, j]; 0]
+            connectivity[row_j_in_i:end, s] = [connectivity[row_j_in_i+1:end, s]; 0]
 
+            # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
             if row_k_in_m == nothing || row_m_in_k == nothing
-                println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-                connectivity = vcat(connectivity, zeros(1, size(faces,2)))
+                println("padded row of 0s on bottom of \"connectivity\"")
+                connectivity = vcat(connectivity, zeros(1, size(connectivity,2)))
                 connectivity[end, m] = k
                 connectivity[end, k] = m
             end
@@ -136,7 +160,7 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
             connectivity[row_k_in_m, m] = k
             connectivity[row_m_in_k, k] = m
 
-        end
+        end # end if
 
     end # end s for
 
