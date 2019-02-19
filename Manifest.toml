@@ -264,9 +264,9 @@ version = "0.0.4"
 
 [[GR]]
 deps = ["Base64", "DelimitedFiles", "LinearAlgebra", "Pkg", "Printf", "Random", "Serialization", "Sockets", "Test"]
-git-tree-sha1 = "3c62c19ddf86ff016829fdac1663cd3c75558c34"
+git-tree-sha1 = "41bd911efffb56957b45366770eaaa443de3f782"
 uuid = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
-version = "0.37.0"
+version = "0.38.1"
 
 [[GeometryTypes]]
 deps = ["ColorTypes", "FixedPointNumbers", "IterTools", "LinearAlgebra", "StaticArrays", "Test"]
@@ -430,10 +430,10 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[MAT]]
-deps = ["BufferedStreams", "Compat", "HDF5", "Libz"]
-git-tree-sha1 = "2867125226f7815ccebca4cd67c719af2f07fb13"
+deps = ["BufferedStreams", "HDF5", "Libz", "LinearAlgebra", "SparseArrays", "Test"]
+git-tree-sha1 = "e7c19d868d482cf62ba33afd2087ccc00de4f7f5"
 uuid = "23992714-dd62-5051-b70f-ba57cb901cac"
-version = "0.4.0"
+version = "0.5.0"
 
 [[MacroTools]]
 deps = ["Compat"]
@@ -480,9 +480,9 @@ version = "1.0.0"
 
 [[NLSolversBase]]
 deps = ["Calculus", "DiffEqDiffTools", "DiffResults", "Distributed", "ForwardDiff", "LinearAlgebra", "Random", "SparseArrays", "Test"]
-git-tree-sha1 = "2bd568eda045f5ad2cbd311d71e09d7165ab2bf6"
+git-tree-sha1 = "0c6f0e7f2178f78239cfb75310359eed10f2cacb"
 uuid = "d41bc354-129a-5804-8e4c-c37616107c6c"
-version = "7.3.0"
+version = "7.3.1"
 
 [[NaNMath]]
 deps = ["Compat"]
