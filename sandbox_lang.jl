@@ -41,54 +41,69 @@ function make_edges(faces)
 end
 
 
-function test_flip(i::Int, j::Int, vertices, faces, connectivity)
-    # checks whether edge between i,j vertices should be flipped
-    # according to Zinchenko (2013)
+function flip_edges!(faces, vertices, connectivity)
+    maxx = size(vertices, 2)
 
-    # number of neighbors
-    i_num = length(filter(x -> x>0, connectivity[:,i]))
-    j_num = length(filter(x -> x>0, connectivity[:,j]))
+    for i in 1:maxx
+        i_num = length(filter(x -> x>0, connectivity[:,i]))
+        if i_num <= 5
+            #println("skipped $i-vertex: <=5 neighs")
+            continue
+        end
 
-    # whether after flip each would have at least 5 neighbors
-    if i_num <= 5 || j_num <= 5
-        println("<5 vertices")
-        return false, 0, 0
-    end
+        for j in i+1:maxx
+            if !(j in connectivity[:,i])
+                #println("$i -/- $j !")
+                continue
+            end
 
-    xi, xj = vertices[:,i], vertices[:,j]
-
-    common = intersect(connectivity[:,i], connectivity[:,j])
-    common = filter(x -> x>0, common)
-    if length(common) != 2
-        println("common = ", common)
-        return false, 0, 0
-    end
-    k, m = common[1], common[2]
-    xk, xm = vertices[:,k], vertices[:,m]
-
-    kc = find_circumcenter(xi, xj, xk)
-    mc = find_circumcenter(xi, xj, xm)
-
-    # a threshold value
-    d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
-
-    if norm(xk - xm)^2 < d
-        return true, k, m
-    end
-
-end
+            j_num = length(filter(x -> x>0, connectivity[:,j]))
+            if j_num <= 5
+                #println("vertex $i: skipped $j-vertex: <=5 neighs")
+                continue
+            end
 
 
-function flip_connectivity!(faces, i, j, vertices, connectivity)
-    # adjusts faces to the i-j  ->  k-m edge flip
-    shouldflip, k, m = test_flip(i, j, vertices, faces, connectivity)
+            xi, xj = vertices[:,i], vertices[:,j]
 
-    if !shouldflip
-        println("no flips made")
-        return nothing
-    end
+            common = intersect(connectivity[:,i], connectivity[:,j])
+            common = filter(x -> x>0, common)
+            if length(common) != 2
+                #println("skipping $i--$j, common len not 2, common = $common")
+                continue
+            end
+            #println("$i--$j common = $common")
+            k, m = common[1], common[2]
+            xk, xm = vertices[:,k], vertices[:,m]
+
+            kc = find_circumcenter(xi, xj, xk)
+            mc = find_circumcenter(xi, xj, xm)
+
+            # a threshold value
+            d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
+
+            if norm(xk - xm)^2 < d
+                println("------------------------------------------------------------------- flipped $i--$j to $k--$m")
+
+                readline(stdin)
+                flip_connectivity!(faces, connectivity, i, j, k, m)
+            end
+
+        end # end j for
+
+    end # end i for
+
+end # end function
+
+
+function flip_connectivity!(faces, connectivity, i, j, k, m)
+    # adjusts faces & connectivity to the i--j  ->  k--m edge flip
 
     for s in 1:size(faces,2)
+        # finds first(and only) column where all 3 indices appear and adjusts indices
+        println("$s: $i $j $k // $(faces[:,s])")
+        readline(stdin)
+
         if length(intersect([i,j,k], faces[:,s])) == 3
             row = findfirst(x-> x==j, faces[:,s])
             faces[row, s] = m
@@ -97,11 +112,38 @@ function flip_connectivity!(faces, i, j, vertices, connectivity)
             row = findfirst(x-> x==i, faces[:,s])
             faces[row, s] = k
         end
-    end
 
-    #return faces
+    end # end s for
 
-end
+    for s in 1:size(connectivity,2)
+        if length(intersect([j,k,m], connectivity[:,s])) == 3
+            println("updatalino le conn table")
+            row_j_in_i = findfirst(x-> x==j, connectivity[:,s])
+            row_i_in_j = findfirst(x-> x==i, connectivity[:,j])
+            row_k_in_m = findfirst(x-> x==0, connectivity[:,m])
+            row_m_in_k = findfirst(x-> x==0, connectivity[:,k])
+
+            connectivity[row_j_in_i, i] = 0
+            connectivity[row_i_in_j, j] = 0
+
+            if row_k_in_m == nothing || row_m_in_k == nothing
+                println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+                connectivity = vcat(connectivity, zeros(1, size(faces,2)))
+                connectivity[end, m] = k
+                connectivity[end, k] = m
+            end
+
+            connectivity[row_k_in_m, m] = k
+            connectivity[row_m_in_k, k] = m
+
+        end
+
+    end # end s for
+
+
+
+
+end # end function
 
 
 function find_circumcenter(x1, x2, x3)
