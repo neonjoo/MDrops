@@ -369,7 +369,7 @@ function project_on_drop(points,CDE,normals,r0)
 end
 
 function active_stabilize(points0,faces,CDE,connectivity,normals;
-    deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000)
+    deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
 # actively rearange vertices on a surfaces given by fitted paraboloids
 # as per Zinchenko(2013)
     println("active stabilization")
@@ -428,7 +428,9 @@ function active_stabilize(points0,faces,CDE,connectivity,normals;
             Sc = maximum(xij./hij) / minimum(xij./hij)
             Cdelta_min = minimum(make_Cdeltas(points, faces))
 
-            if Sc < 0.75*Sc0 && Cdelta_min > 1.15*Cdelta_min0
+            #println("Sc/Sc0 = ",Sc/Sc0)
+            #println("Cdelta/Cdelta0 = ",Cdelta_min/Cdelta_min0)
+            if Sc > critSc*Sc0 || Cdelta_min < critCdelta*Cdelta_min0
                 no_improvement = false
             end
         end
@@ -437,12 +439,15 @@ function active_stabilize(points0,faces,CDE,connectivity,normals;
             if no_improvement == true
                 println("no significant improvement achieved")
                 println("reversing changes")
-                points = points0
-                break
+                #points = points0
+                #break
             else
-                println("improvement detected in first ", checkiters, " iterations")
-                println("itereting for ", maxiters - checkiters, " more iterations")
+                println("improvement detected in the first ", checkiters, " iterations")
+                println("iterating for ", maxiters - checkiters, " more iterations")
             end
+        end
+        if iter%100 == 0
+            println("iteration ",iter)
         end
     end
     return points

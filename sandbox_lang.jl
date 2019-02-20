@@ -155,6 +155,7 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
                 connectivity = vcat(connectivity, zeros(1, size(connectivity,2)))
                 connectivity[end, m] = k
                 connectivity[end, k] = m
+                continue
             end
 
             connectivity[row_k_in_m, m] = k
