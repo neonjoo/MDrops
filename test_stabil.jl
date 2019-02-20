@@ -34,14 +34,14 @@ normals = Normals(points, faces)
 normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
 #points2 = active_stabilize(points,faces,CDE,connectivity,normals,deltakoef=0.1,critSc = 0.999,critCdelta = 1.001)#,critSc = 0.75,critCdelta = 1.15)
-for i = 1:3
+for i = 1:1
     println("starting stabilization")
     global points2,faces2, connectivity, normals, CDE
     flip_edges!(faces2,connectivity,points2)
-    points2 = active_stabilize(points,faces,CDE,connectivity,normals,deltakoef=0.1,critSc = 0.999,critCdelta = 1.001)#,critSc = 0.75,critCdelta = 1.15)
+    @time points2 = active_stabilize(points,faces,CDE,connectivity,normals,deltakoef=0.1,critSc = 0.999,critCdelta = 1.001)#,critSc = 0.75,critCdelta = 1.15)
 end
 
-scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
+scene = Makie.mesh(points', faces',color = :white, shading = false,visible = false)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 2)
-scene = Makie.mesh!(points', faces2',color = :gray, shading = false,visible = true)
+scene = Makie.mesh(points', faces2',color = :gray, shading = false,visible = true)
 Makie.wireframe!(scene[end][1], color = :blue, linewidth = 2,visible = true)
