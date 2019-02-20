@@ -50,9 +50,9 @@ function flip_edges!(faces, connectivity, vertices)
     while continue_flip
         global continue_flip
         continue_flip = false
-        #println("------------------- startelino")
+        println("started flip loop")
+
         for i in 1:maxx
-            #println("---------- vertex $i")
             # num of i-th vertex neighbors
             i_num = length(filter(x -> x>0, connectivity[:,i]))
             if i_num <= 5
@@ -64,6 +64,7 @@ function flip_edges!(faces, connectivity, vertices)
                     continue
                 end
 
+                # num of j-th vertex neighbors
                 j_num = length(filter(x -> x>0, connectivity[:,j]))
                 if j_num <= 5
                     continue
@@ -88,16 +89,15 @@ function flip_edges!(faces, connectivity, vertices)
                 d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
 
                 if norm(xk - xm)^2 < d
-                    #println("--------------------- flippening $i--$j to $k--$m")
-                    #readline(stdin)
+                    println("--------------------- flippening $i--$j to $k--$m")
+                    readline(stdin)
                     flip_connectivity!(faces, connectivity, i, j, k, m)
                     continue_flip = true
+                    # break
                 end
-                #println("ended $i-$j,   $continue_flip")
+                
             end # end j for
             if continue_flip
-                #println("breakened")
-                #readline(stdin)
                 break
             end
         end # end i for
