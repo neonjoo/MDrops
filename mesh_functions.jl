@@ -1,7 +1,7 @@
 function make_pc(CDE::Array{Float64,2})
-# returns principal curvatures k1, k2 at the vertices
-# with locally fitted paraboloids z = Cx^2 + Dxy + Ey^2
-# k1 > k2
+    # returns principal curvatures k1, k2 at the vertices
+    # with locally fitted paraboloids z = Cx^2 + Dxy + Ey^2
+    # k1 > k2
 
     C = CDE[1,:]
     D = CDE[2,:]
@@ -26,9 +26,9 @@ function make_dS(points,faces)
 end
 
 function make_pc_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
-# returns principal curvatures k1, k2 at the point ( x , y , z(x,y) )
-# on a locally fitted paraboloid z = Cx^2 + Dxy + Ey^2
-# k1 > k2 (hopefully)
+    # returns principal curvatures k1, k2 at the point ( x , y , z(x,y) )
+    # on a locally fitted paraboloid z = Cx^2 + Dxy + Ey^2
+    # k1 > k2 (hopefully)
 
     C = CDE_local[1]
     D = CDE_local[2]
@@ -117,7 +117,7 @@ function make_edges(faces)
 end
 
 function make_connectivity(edges)
-# find adjescent vertices
+    # find adjescent vertices
     valence = maximum(StatsBase.counts(edges)) # max number of adjescent vertices
     nvertices = maximum(edges)
     connectivity = zeros(Int64, valence, nvertices) # create empty array padded with zeros
@@ -132,7 +132,7 @@ function make_connectivity(edges)
 end
 
 function make_closefaces(faces)
-# find adjescent triangles
+    # find adjescent triangles
     valence = maximum(StatsBase.counts(faces)) # max number of adjescent vertices
     nvertices = maximum(faces)
     closefaces = zeros(Int64, valence, nvertices) # create empty array padded with zeros
@@ -164,12 +164,20 @@ function make_normals_spline(points, connectivity, edges, normals0;
     #eps inner and outer are convergence criteria.
     #eps outer >> eps_inner
 
+    # takes almost 1minute to enter this function from main_lan.jl call
+
+
+    println("entered spline")
     CDE = zeros(Float64, size(points)) # 3xN array
+    println("done CDE zeros")
     gradPhi = [0.,0.,0.]
+    println("defined grad")
     normals = copy(normals0)
+    println("copied normals")
     #outer iterations
     for m = 1:max_iters_outer
         #println(m)
+        println("outer step: $m")
         normalsp = copy(normals) #previous
         for i = 1:size(points,2)
             #inner iterations
@@ -324,7 +332,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
 end
 
 function make_min_edges(points,connectivity)
-# finds the length of the smallest of adjecscent edges to a point
+    # finds the length of the smallest of adjecscent edges to a point
     min_edges = ones(Float64,size(points,2)) * 1e200
     for i = 1:size(points,2)
         for j in connectivity[:,i]
@@ -342,7 +350,7 @@ function make_min_edges(points,connectivity)
 end
 
 function project_on_drop(points::Array{Float64,2},CDE::Array{Float64,2},normals::Array{Float64,2},r0::Array{Float64,1})
-# projects a point r0 on the closet fitted paraboloid
+    # projects a point r0 on the closet fitted paraboloid
     i = argmin(sum((points .- r0).^2,dims=1))[2]
 
     r = points[:,i]
@@ -381,8 +389,8 @@ end
 
 function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::Array{Float64,2},connectivity::Array{Int64,2},normals::Array{Float64,2};
     deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
-# actively rearange vertices on a surfaces given by fitted paraboloids
-# as per Zinchenko(2013)
+    # actively rearange vertices on a surfaces given by fitted paraboloids
+    # as per Zinchenko(2013)
     println("active stabilization")
     points = copy(points0)
 
@@ -551,4 +559,152 @@ function make_Cdeltas(points, faces)
         Cdeltas[i] = 0.25*sqrt( 1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2 )
     end
     return Cdeltas
+end
+
+
+
+function flip_edges!(faces, connectivity, vertices)
+    # flip edges to improve mesh, updates "faces" and "connectivity"
+
+    println("flipping edges")
+    maxx = size(vertices, 2)
+    global continue_flip = true
+    global flipped_any = false
+
+    while continue_flip
+        global continue_flip
+        continue_flip = false
+        #println("started flip loop")
+
+        for i in 1:maxx
+            # num of i-th vertex neighbors
+            i_num = length(filter(x -> x>0, connectivity[:,i]))
+            if i_num <= 5
+                continue
+            end
+
+            for j in i+1:maxx
+                if !(j in connectivity[:,i])
+                    continue
+                end
+
+                # num of j-th vertex neighbors
+                j_num = length(filter(x -> x>0, connectivity[:,j]))
+                if j_num <= 5
+                    continue
+                end
+
+                xi, xj = vertices[:,i], vertices[:,j]
+
+                common = intersect(connectivity[:,i], connectivity[:,j])
+                common = filter(x -> x>0, common)
+
+                if length(common) != 2
+                    continue
+                end
+
+                k, m = common[1], common[2]
+                xk, xm = vertices[:,k], vertices[:,m]
+
+                kc = find_circumcenter(xi, xj, xk)
+                mc = find_circumcenter(xi, xj, xm)
+
+                # a threshold value for flipping (Zinchenko2013)
+                d = norm(dot(xk-kc, xm-xk)) + norm(dot(xm-mc, xm-xk))
+
+                if norm(xk - xm)^2 < d
+                    #println("--------------------- flippening $i--$j to $k--$m")
+                    flip_connectivity!(faces, connectivity, i, j, k, m)
+                    continue_flip = true
+                    # break
+                end
+
+            end # end j for
+            if continue_flip
+                flipped_any = true
+                break
+            end
+        end # end i for
+
+    end # end while
+
+    # returns true if any edge was flipped. If so, active stabilization is to be applied
+    println("Flipped any? : $flipped_any")
+    return flipped_any
+
+end # end function
+
+
+function flip_connectivity!(faces, connectivity, i, j, k, m)
+    # adjusts faces & connectivity to the i--j  ->  k--m edge flip
+
+    found_one, found_two = false, false
+    for s in 1:size(faces,2)
+        # finds first(and only) column where all 3 indices appear and adjusts indices
+
+        if !found_one
+            if length(intersect([i,j,k], faces[:,s])) == 3
+                row = findfirst(x-> x==j, faces[:,s])
+                faces[row, s] = m
+                found_one = true
+            end
+        end
+
+        if !found_two
+            if length(intersect([i,m,j], faces[:,s])) == 3
+                row = findfirst(x-> x==i, faces[:,s])
+                faces[row, s] = k
+                found_two = true
+            end
+        end
+
+        if found_one && found_two
+            break
+        end
+
+    end # end s for
+
+
+    for s in 1:size(connectivity,2)
+        if length(intersect([j,k,m], connectivity[:,s])) == 3
+            # row of j in i-th column etc.
+            row_j_in_i = findfirst(x-> x==j, connectivity[:,s])
+            row_i_in_j = findfirst(x-> x==i, connectivity[:,j])
+            row_k_in_m = findfirst(x-> x==0, connectivity[:,m])
+            row_m_in_k = findfirst(x-> x==0, connectivity[:,k])
+
+            # cut the i--j edge in "connectivity" by sliding column values up 1 row, placing 0 in the end
+            connectivity[row_i_in_j:end, j] = [connectivity[row_i_in_j+1:end, j]; 0]
+            connectivity[row_j_in_i:end, s] = [connectivity[row_j_in_i+1:end, s]; 0]
+
+            # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
+            if row_k_in_m == nothing || row_m_in_k == nothing
+                println("padded row of 0s on bottom of \"connectivity\"")
+                connectivity = vcat(connectivity, zeros(1, size(connectivity,2)))
+                connectivity[end, m] = k
+                connectivity[end, k] = m
+                continue
+            end
+
+            connectivity[row_k_in_m, m] = k
+            connectivity[row_m_in_k, k] = m
+
+        end # end if
+
+    end # end s for
+
+end # end function
+
+
+function find_circumcenter(x1, x2, x3)
+    # finds circumcenter coordinates of a triangle
+    # according to wiki
+
+    d = 2 * norm(cross(x1-x2, x2-x3))^2
+    a = norm(x2-x3)^2 * dot(x1-x2, x1-x3) / d
+    b = norm(x1-x3)^2 * dot(x2-x1, x2-x3) / d
+    c = norm(x1-x2)^2 * dot(x3-x1, x3-x2) / d
+
+    return a*x1 + b*x2 + c*x3
+
 end

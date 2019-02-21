@@ -1,5 +1,5 @@
 function make_connectivity(edges)
-# find adjescent vertices
+    # find adjescent vertices
     valence = maximum(StatsBase.counts(edges)) # max number of adjescent vertices
     nvertices = maximum(edges)
     connectivity = zeros(Int64, valence, nvertices) # create empty array padded with zeros
@@ -46,6 +46,7 @@ function flip_edges!(faces, connectivity, vertices)
 
     maxx = size(vertices, 2)
     global continue_flip = true
+    global flipped_any = false
 
     while continue_flip
         global continue_flip
@@ -90,7 +91,6 @@ function flip_edges!(faces, connectivity, vertices)
 
                 if norm(xk - xm)^2 < d
                     println("--------------------- flippening $i--$j to $k--$m")
-                    #readline(stdin)
                     flip_connectivity!(faces, connectivity, i, j, k, m)
                     continue_flip = true
                     # break
@@ -98,11 +98,15 @@ function flip_edges!(faces, connectivity, vertices)
 
             end # end j for
             if continue_flip
+                flipped_any = true
                 break
             end
         end # end i for
 
     end # end while
+
+    # returns true if any edge was flipped. If so, active stabilization is to be applied
+    return flipped_any
 
 end # end function
 
@@ -164,9 +168,6 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
         end # end if
 
     end # end s for
-
-
-
 
 end # end function
 
