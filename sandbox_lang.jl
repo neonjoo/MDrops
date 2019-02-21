@@ -90,12 +90,12 @@ function flip_edges!(faces, connectivity, vertices)
 
                 if norm(xk - xm)^2 < d
                     println("--------------------- flippening $i--$j to $k--$m")
-                    readline(stdin)
+                    #readline(stdin)
                     flip_connectivity!(faces, connectivity, i, j, k, m)
                     continue_flip = true
                     # break
                 end
-                
+
             end # end j for
             if continue_flip
                 break

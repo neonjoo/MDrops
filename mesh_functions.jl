@@ -303,9 +303,9 @@ function make_normals_spline(points, connectivity, edges, normals0;
                # println("edge number = ", i)
                # println("CDE = ", CDE[:,i])
                # println("gradPhi = ",gradPhi)
-               # println("gradPhinorm = ",norm(gradPhi))
-               # #println("Phi = ",norm(gradPhi))
-               # readline(stdin)
+               #println("gradPhinorm = ",norm(gradPhi))
+               #println("Phi = ",norm(gradPhi))
+               readline(stdin)
 
                if norm(gradPhi) < eps_inner
                    break
@@ -341,22 +341,33 @@ function make_min_edges(points,connectivity)
     return min_edges
 end
 
-function project_on_drop(points,CDE,normals,r0)
+function project_on_drop(points::Array{Float64,2},CDE::Array{Float64,2},normals::Array{Float64,2},r0::Array{Float64,1})
 # projects a point r0 on the closet fitted paraboloid
     i = argmin(sum((points .- r0).^2,dims=1))[2]
-    #minval = minimum(sum((points .- r0).^2,dims=1))
-    #i = findfirst(x->x==minval,sum((points .- r0).^2,dims=1))[2]
-    #println("closest i = ", i)
 
     r = points[:,i]
 
     r0 = to_local(r0 - r, normals[:,i])
 
-    f(x) = (x[1]-r0[1])^2 + (x[2]-r0[2])^2 +
+    f(x::Array{Float64,1}) = (x[1]-r0[1])^2 + (x[2]-r0[2])^2 +
             (CDE[1,i]*x[1]^2 + CDE[2,i]*x[1]*x[2] + CDE[3,i]*x[2]^2 - r0[3])^2
-    x0 = [r0[1],r0[2]]
+    function g!(storage::Array{Float64,1},x::Array{Float64,1}) # gradient of f
+        grad = storage
+        grad[1] = 2*(x[1]-r0[1] + (2*CDE[1,i]*x[1] + CDE[2,i]*x[2])*(CDE[1,i]*x[1]^2 + CDE[2,i]*x[1]*x[2] + CDE[3,i]*x[2]^2 - r0[3]))
+        grad[2] = 2*(x[2]-r0[2] + (CDE[2,i]*x[1] + 2*CDE[3,i]*x[2])*(CDE[1,i]*x[1]^2 + CDE[2,i]*x[1]*x[2] + CDE[3,i]*x[2]^2 - r0[3]))
+    end
 
-    res = Optim.optimize(f,x0,Optim.Options(f_tol=1.e-10))
+    function h!(storage::Array{Float64,2},x::Array{Float64,1}) # hessian of f
+        h = storage
+        h[1, 1] = 2.0 + 2*(2*CDE[1,i]*x[1] + CDE[2,i]*x[2])^2 + 4*CDE[1,i]*(CDE[1,i]*x[1]^2 + CDE[2,i]*x[1]*x[2] + CDE[3,i]*x[2]^2 - r0[3])
+        h[1, 2] = 2*CDE[1,i]*x[1]*(3*CDE[2,i]*x[1] + 4*CDE[3,i]*x[2]) + 2*CDE[2,i]*(2*CDE[2,i]*x[1]*x[2] + 3*CDE[3,i]*x[2]^2 - r0[3])
+        h[2, 1] = 2*CDE[1,i]*x[1]*(3*CDE[2,i]*x[1] + 4*CDE[3,i]*x[2]) + 2*CDE[2,i]*(2*CDE[2,i]*x[1]*x[2] + 3*CDE[3,i]*x[2]^2 - r0[3])
+        h[2, 2] = 2.0 + 2*(CDE[2,i]*x[1] + 2*CDE[3,i]*x[2])^2 + 4*CDE[3,i]*(CDE[1,i]*x[1]^2 + CDE[2,i]*x[1]*x[2] + CDE[3,i]*x[2]^2 - r0[3])
+    end
+
+    x0 = [r0[1],r0[2]]
+    # ,Optim.Options(f_tol=1.e-10)
+    res = Optim.optimize(f,g!,h!,x0,NewtonTrustRegion())
     #println(res)
     x1 = Optim.minimizer(res)[1]
     x2 = Optim.minimizer(res)[2]
@@ -368,7 +379,7 @@ function project_on_drop(points,CDE,normals,r0)
     return r0
 end
 
-function active_stabilize(points0,faces,CDE,connectivity,normals;
+function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::Array{Float64,2},connectivity::Array{Int64,2},normals::Array{Float64,2};
     deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
 # actively rearange vertices on a surfaces given by fitted paraboloids
 # as per Zinchenko(2013)
@@ -402,15 +413,12 @@ function active_stabilize(points0,faces,CDE,connectivity,normals;
 
         #project points on the drop
         for i = 1:size(points,2)
-            #println(i)
             points[:,i] = project_on_drop(points0,CDE,normals,points[:,i])
-            #println(points[:,i])
-            #readline(stdin)
         end
 
         # recalculate the mesh parameters
         dS = make_dS(points,faces)
-        k1,k2 = make_pc(CDE)
+        #k1,k2 = make_pc(CDE)
         for i = 1:size(points,2)
             r0 = points[:,i]
             minind = argmin(sum((points0 .- r0).^2,dims=1))[2]
