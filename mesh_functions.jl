@@ -305,7 +305,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
                # println("gradPhi = ",gradPhi)
                #println("gradPhinorm = ",norm(gradPhi))
                #println("Phi = ",norm(gradPhi))
-               readline(stdin)
+               #readline(stdin)
 
                if norm(gradPhi) < eps_inner
                    break
