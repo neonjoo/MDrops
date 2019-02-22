@@ -2,7 +2,7 @@ using Makie
 using FileIO
 using JLD2
 
-datadir="/home/andris/mydatadirst1/"
+datadir="/home/andris/mydatadirst/"
 
 last_file = readdir(datadir)[end]
 println(last_file)

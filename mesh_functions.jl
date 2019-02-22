@@ -1,3 +1,99 @@
+function make_icosamesh(;R=1)
+    vertices = Array{Float64}(undef, (12,3))
+    triangles = Array{Int64}(undef, (20,3))
+
+    #R = 1
+    # x,y,z coordinates of the vertices
+    vertices[1,:] = [0,0,R]
+    vertices[12,:] = [0,0,-R]
+
+    ϕ = 0.
+    for i in 2:11
+
+        if i%2 == 0
+            θ = 2*asin(1/(2*sin(2pi/5)))
+        elseif i%2 == 1
+            θ = pi - 2*asin(1/(2*sin(2pi/5)))
+        end
+
+        vertices[i,:] = R*[sin(θ)*cos(ϕ), sin(θ)*sin(ϕ), cos(θ) ]
+
+        ϕ += pi/5
+        #global ϕ += pi/5
+    end
+
+    #triangles are marked counter clockwise, looking from the outside
+    #top
+    triangles[1,:] = [1,10,2]
+    triangles[2,:] = [1,2,4]
+    triangles[3,:] = [1,4,6]
+    triangles[4,:] = [1,6,8]
+    triangles[5,:] = [1,8,10]
+    #middle
+    triangles[6,:] = [2,11,3]
+    triangles[7,:] = [2,3,4]
+    triangles[8,:] = [3,5,4]
+    triangles[9,:] = [4,5,6]
+    triangles[10,:] = [5,7,6]
+    triangles[11,:] = [6,7,8]
+    triangles[12,:] = [7,9,8]
+    triangles[13,:] = [8,9,10]
+    triangles[14,:] = [9,11,10]
+    triangles[15,:] = [2,10,11]
+    #bottom
+    triangles[16,:] = [3,11,12]
+    triangles[17,:] = [3,12,5]
+    triangles[18,:] = [5,12,7]
+    triangles[19,:] = [7,12,9]
+    triangles[20,:] = [9,12,11]
+
+    return vertices, triangles
+end
+
+function expand_icosamesh(;R=1,depth=3)
+    vertices, triangles = make_icosamesh(R=R)
+    for iter = 1:depth
+        checked_sides = Array{Int64}[] # create empty array
+        new_triangles = Array{Int64}(undef,(0,3)) # create 0x3 uninitialized matrix
+        is = Array{Int64}(undef,(1,3))
+        js = Array{Int64}(undef,(1,3))
+        original_vertices_length = size(vertices,1)
+        for i = 1:size(triangles,1)
+            triangle = triangles[i,:]
+
+            is[1] = triangle[1]
+            is[2] = triangle[2]
+            is[3] = triangle[3]
+
+            sides = [
+                sort([triangle[1], triangle[2]]),
+                sort([triangle[2], triangle[3]]),
+                sort([triangle[3], triangle[1]])
+            ]
+
+            for j = 1:3
+                if sides[j] in checked_sides
+                    js[j] = findfirst(x -> x==sides[j],checked_sides) + original_vertices_length
+                else
+                    new_vertex = 0.5*( vertices[sides[j][1],:] + vertices[sides[j][2],:] )
+                    scale = R/sqrt(new_vertex[1]^2 + new_vertex[2]^2 + new_vertex[3]^2)
+                    new_vertex *= scale
+                    push!(checked_sides, sides[j]) # add side to checked sides
+                    vertices = vcat(vertices,new_vertex') # add to new vertices
+                    js[j] = size(checked_sides,1) + original_vertices_length
+                end
+            end
+
+            new_triangles = vcat(new_triangles,[is[1],js[1],js[3]]')
+            new_triangles = vcat(new_triangles,[js[1],is[2],js[2]]')
+            new_triangles = vcat(new_triangles,[js[2],is[3],js[3]]')
+            new_triangles = vcat(new_triangles,[js[1],js[2],js[3]]')
+        end
+        triangles = new_triangles
+    end
+    return vertices', triangles'
+end
+
 function make_pc(CDE::Array{Float64,2})
     # returns principal curvatures k1, k2 at the vertices
     # with locally fitted paraboloids z = Cx^2 + Dxy + Ey^2

@@ -17,16 +17,23 @@ include("./functions.jl")
 include("./mesh_functions.jl")
 include("./sandbox_lang.jl")
 include("./physics_functions.jl")
+#
+# points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
+# faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
 
-points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
-faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
 
-println("Loaded mesh")
 
-points = convert(Array, points_csv)
-faces = convert(Array, faces_csv)
-points = Array{Float64}(points')
-faces = Array{Int64}(faces')
+#println("Loaded mesh")
+#
+# points = convert(Array, points_csv)
+# faces = convert(Array, faces_csv)
+# points = Array{Float64}(points')
+# faces = Array{Int64}(faces')
+
+points, faces = expand_icosamesh(;R=1,depth=3)
+points = Array{Float64}(points)
+faces = Array{Int64}(faces)
+
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
 # H0 = [0, 0, 10]
@@ -113,10 +120,10 @@ for iter in 1:steps
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
     velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    velocitiesn = sum(velocities .* normals,dims=1) .* normals
+    velocities = sum(velocities .* normals,dims=1) .* normals
 
     zc = SG.Zinchenko2013(points, faces, normals)
-    velocities = SG.stabilise!(velocitiesn,points, faces, normals, zc)
+    SG.stabilise!(velocities,points, faces, normals, zc)
 
     dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     #dt2 = 0.4*minl2/maxv2
