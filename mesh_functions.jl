@@ -320,8 +320,8 @@ function make_normals_spline(points, connectivity, edges, normals0;
                end
             end
         end
-        #println("outer iters:")
-        #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+        println("outer iters:")
+        println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
             println("paraboloid fit converged")

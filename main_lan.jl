@@ -1,6 +1,8 @@
 using LinearAlgebra
 using CSV
 using JLD2
+using Makie
+using StatsBase
 #using ElTopo
 
 
@@ -15,6 +17,7 @@ SG = SurfaceGeometry2
 
 include("./stabilization.jl")
 include("./functions.jl")
+include("./mesh_functions.jl")
 
 
 #points_csv= CSV.read("/home/lai/Dropbox/dokt/code/matlab/vertices.csv", header=0)
@@ -31,15 +34,17 @@ faces = convert(Array, faces_csv)
 points = Array{Float64}(points')
 faces = Array{Int64}(faces')
 
-points = points .* (4.9 * 10^-1)
+
+points0 = copy(points)
+faces0 = copy(faces)
 
 
-H0 = [0, 0, 10]
+H0 = [0, 0, 20]
 
 
 #H0 = 33 .* [0, 0, 1]
 #H0 = [0,0,0]
-mu = 3
+mu = 5
 eta = 1
 gamma = 6.9 * 10^-1
 
@@ -48,33 +53,33 @@ last_step = 0
 
 w = 2*pi/50
 t = 0
-dt = 0.01
-steps = 40
+dt = 0.05
+steps = 20
 
-datadir="/home/lai/Dropbox/dokt/code/data/stabilized"
+datadir="/home/laigars/sim_data/"
 # typical triangle side length
-scale = 0.1 * 4.9 * 10^-1
-
-elparameters(scale) = Elparameters( # comments are some values that work fine
- m_use_fraction = false,                     # false
- m_min_edge_length = 0.7*scale,             # 0.7 * scale
- m_max_edge_length = 1.5*scale,               # 1.5 * scale
- m_max_volume_change = 0.1*scale^3,         # 0.1 * scale^3
- m_min_curvature_multiplier = 1,             # 1
- m_max_curvature_multiplier = 1,            # 1
- m_merge_proximity_epsilon = 0.5*scale,     # 0.5 * scale
- m_proximity_epsilon = 0.00001,             # 0.00001
- m_perform_improvement = true,              # true
- m_collision_safety = false,                 # false
- m_min_triangle_angle = 15,                 # 15
- m_max_triangle_angle = 120,                # 120
- m_allow_vertex_movement = false,           # false   ### This is where is a bug
- m_use_curvature_when_collapsing = false,    # false
- m_use_curvature_when_splitting = false,    # false
- m_dt = 1                                   # 1
-)
-
-par = elparameters(scale)
+#scale = 0.1 * 4.9 * 10^-1
+#
+# elparameters(scale) = Elparameters( # comments are some values that work fine
+#  m_use_fraction = false,                     # false
+#  m_min_edge_length = 0.7*scale,             # 0.7 * scale
+#  m_max_edge_length = 1.5*scale,               # 1.5 * scale
+#  m_max_volume_change = 0.1*scale^3,         # 0.1 * scale^3
+#  m_min_curvature_multiplier = 1,             # 1
+#  m_max_curvature_multiplier = 1,            # 1
+#  m_merge_proximity_epsilon = 0.5*scale,     # 0.5 * scale
+#  m_proximity_epsilon = 0.00001,             # 0.00001
+#  m_perform_improvement = true,              # true
+#  m_collision_safety = false,                 # false
+#  m_min_triangle_angle = 15,                 # 15
+#  m_max_triangle_angle = 120,                # 120
+#  m_allow_vertex_movement = false,           # false   ### This is where is a bug
+#  m_use_curvature_when_collapsing = false,    # false
+#  m_use_curvature_when_splitting = false,    # false
+#  m_dt = 1                                   # 1
+# )
+#
+#par = elparameters(scale)
 
 
 
@@ -113,9 +118,6 @@ expand = true
 reset_vmax = true
 
 
-
-
-
 function f1(normals,faces, points, velocitiesn)
     @time make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 end
@@ -126,19 +128,19 @@ end
 
 for i in 1:steps
     println("Step $i")
-    global points2, faces2, t, w, H0
+    global points2, faces2, con
+    global t, w, H0
     global points = copy(points2)
     global faces = copy(faces2)
-    global expand, reset_vmax
+    #global expand, reset_vmax
 
-    #normals = zeros(3, size(points,2))
     normals = Normals(points, faces)
 
     psi = PotentialSimple(points, faces, mu, H0; normals = normals)
     Ht = HtField(points, faces, psi, normals)
     Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
     Hn = normals .* Hn_norms'
-    
+
 
     mup = mu
     # magnitudes squared of the normal force
@@ -161,19 +163,46 @@ for i in 1:steps
     velocitiesn = normals .* velocitiesn_norms'
 
 
-    #Vvecs = f1(normals,faces, points, velocitiesn)
-    velocitiesn = f2(points, faces, normals, velocitiesn, zc)
+    # passive stabilization
+    velocitiesn = SG.stabilise!(points, faces, normals, velocitiesn, zc)
 
+    points = points + velocitiesn * dt
+
+    edges = make_edges(faces)
+    con = make_connectivity(edges)
+    con0 = copy(con)
+
+    println("before ", sum(edges))
+
+    edges0 = copy(edges)
+
+    do_active = false
+    #do_active = flip_edges!(faces, con, points)
+
+    # println("after")
+    # println(con)
+    #
+    # println("delta")
+    # println(con - con0)
+    if i % 1 == 0 || do_active
+        if do_active
+            println("re-did edges, step $i")
+            edges = make_edges(faces)
+            println("after re-did sum: ", sum(edges))
+        end
+
+        println("OUTSIDE re-did sum: ", sum(edges))
+        println("doing active / step $i / flipped?: $do_active")
+        normals, CDE = make_normals_spline(points, con, edges, normals)
+        points = active_stabilize(points, faces, CDE, con, normals)
+
+    end
 
     #velocitiesn = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120);
 
     #velocitiesn = velocitiesn'
 
     #dt = 0.1 * scale / max(sqrt(sum(Vvecs.*Vvecs,2)))
-
-    points2 = points + velocitiesn * dt
-
-    # trajectory[i + 1,:,:] = points2
 
 
 
@@ -212,11 +241,9 @@ for i in 1:steps
     #     if H0[3] >= 3.5
     #         global expand = false
     #     end
-    # end
+    end
 
 
-    t += dt
-    #H0 = 33 .* [sin(w*t), 0, cos(w*t)]
 end
 
 
@@ -235,54 +262,9 @@ end
 #     Ht_teor[3,i] = 3 * norm(H0) * r_xy / r * r_xy / r / (mu+2)
 # end
 
-using PyPlot
-pygui()
-
-fig = figure(figsize=(7,7))
-ax = fig[:gca](projection="3d")
-
-(x, y, z) = [points[i,:] for i in 1:3]
-ax[:scatter](x,y,z, s=2,color="k")
-#(xp, yp, zp) = points[:,418]
-#ax[:scatter](xp, yp, zp, s=10,color="r")
-
-#ax[:set_title]("Normals")
-#ax[:quiver](x,y,z,nx,ny,nz, length=0.2, arrow_length_ratio=0.5)
-
-#ax[:quiver](x,y,z,fx,fy,fz, length=0.2, arrow_length_ratio=0.5)
-#ax[:set_title]("Normal forces")
-
-#ax[:quiver](x,y,z,vnx,vny,vnz, length=5, arrow_length_ratio=0.5)
-#ax[:set_title]("Normal velocities")
-
-#ax[:quiver](x,y,z,Hnx,Hny,Hnz, length=0.3, arrow_length_ratio=0.5, color="red")
-#ax[:quiver](x,y,z,Hnx_teor,Hny_teor,Hnz_teor, length=0.3, arrow_length_ratio=0.5,color="blue")
-#ax[:set_title]("Normal H component, external H // z")
-
-#ax[:quiver](x,y,z,Htx,Hty,Htz, length=0.3, arrow_length_ratio=0.5, color="blue")
-#ax[:quiver](x,y,z,Htx_teor,Hty_teor,Htz_teor, length=0.3, arrow_length_ratio=0.5,color="red")
-#ax[:set_title]("Tangential H")
-
-#ax[:quiver](x,y,z,Hx,Hy,Hz, length=0.3)
-ax[:set_xlim](-2,2)
-ax[:set_ylim](-2,2)
-ax[:set_zlim](-2,2)
-ax[:set_xlabel]("x axis")
-ax[:set_ylabel]("y axis")
-ax[:set_zlabel]("z axis")
-fig[:show]()
 
 
-#
-# (Htx, Hty, Htz) = Ht[1,:], Ht[2,:], Ht[3,:]
-# #velocitiesn = all_normals .* velocitiesn_norm'
-# (vnx, vny, vnz) = [velocitiesn[i,:] for i in 1:3]
-# (Hnx, Hny, Hnz) = [Hn[i,:] for i in 1:3]
-# Hn_teor = normals .* Hn_teor'
-# #Ht_teor = normals .* Ht_teor'
-# (Hnx_teor, Hny_teor, Hnz_teor) = [Hn_teor[i,:] for i in 1:3]
-# (Htx_teor, Hty_teor, Htz_teor) = [Ht_teor[i,:] for i in 1:3]
-# temp = normals .* tensorn
-# (fx, fy, fz) = [temp[i,:] for i in 1:3]
-# (nx, ny, nz) = [normals[i,:] for i in 1:3]
-# (Hx, Hy, Hz) = (Htx+Hnx, Hty+Hny, Htz+Hnz)
+scene = Makie.mesh(points', faces', color = :gray, shading = false,visible = true)
+Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
+scene = Makie.mesh!(pointsm', facesm',color = :gray, shading = false,visible = false)
+Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)
