@@ -167,6 +167,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
     # takes almost 1minute to enter this function from main_lan.jl call
 
 
+<<<<<<< HEAD
     println("fitting local paraboloids")
 
     CDE = zeros(Float64, size(points)) # 3xN array
@@ -179,6 +180,14 @@ function make_normals_spline(points, connectivity, edges, normals0;
     for m = 1:max_iters_outer
         #println(m)
         #println("outer step: $m")
+=======
+    CDE = zeros(Float64, size(points)) # 3xN array
+    gradPhi = [0.,0.,0.]
+    normals = copy(normals0)
+    #outer iterations
+    for m = 1:max_iters_outer
+        #println(m)
+>>>>>>> 728e7ff6159d7850705fc10a7bdf8b16ad5da467
         normalsp = copy(normals) #previous
         for i = 1:size(points,2)
             #inner iterations
@@ -321,8 +330,12 @@ function make_normals_spline(points, connectivity, edges, normals0;
                end
             end
         end
+<<<<<<< HEAD
         #println("outer iters:")
         #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+=======
+        println("spline outer iter $m ,cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+>>>>>>> 728e7ff6159d7850705fc10a7bdf8b16ad5da467
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
             println("paraboloid fit converged")
@@ -630,7 +643,7 @@ function flip_edges!(faces, connectivity, vertices)
     end # end while
 
     # returns true if any edge was flipped. If so, active stabilization is to be applied
-    println("Flipped any? : $flipped_any")
+    println("Flipped any?  $flipped_any")
     return flipped_any
 
 end # end function

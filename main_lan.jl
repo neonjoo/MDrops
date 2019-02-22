@@ -6,9 +6,8 @@ using StatsBase
 #using ElTopo
 
 
-include("./SurfaceGeometry/dt20L/src/SurfaceGeometry2.jl")
-SG = SurfaceGeometry2
-
+include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
+SG = SurfaceGeometry
 #include("./SurfaceGeometry/dt20L/src/StabilisationMethods/stabilisationV2.jl")
 
 #include("./SurfaceGeometry/dt20L/src/Properties.jl")
@@ -44,7 +43,7 @@ H0 = [0, 0, 20]
 
 #H0 = 33 .* [0, 0, 1]
 #H0 = [0,0,0]
-mu = 5
+mu = 7
 eta = 1
 gamma = 6.9 * 10^-1
 
@@ -53,7 +52,7 @@ last_step = 0
 
 w = 2*pi/50
 t = 0
-dt = 0.05
+dt = 0.01
 steps = 20
 
 datadir="/home/laigars/sim_data/"
@@ -90,15 +89,11 @@ global faces2 = copy(faces)
 
 if !isdir("$datadir")
     mkdir("$datadir")
-
     open("$datadir/_params.txt", "w") do file
         write(file, "H0=$H0\nmu=$mu\neta=$eta\ngamma=$gamma\nsteps=$steps")
     end
-
     println("Created new dir: $datadir")
 end
-
-
 
 if continue_sim
     last_file = readdir(datadir)[end]
@@ -111,36 +106,30 @@ if continue_sim
 end
 
 #@load "/home/lai/Dropbox/dokt/code/data/elongation2/data14000.jld2" data
-
 #global points2, faces2, H0 = data[1], data[2], data[3]
 
 expand = true
 reset_vmax = true
 
+normals = Normals(points, faces)
 
-function f1(normals,faces, points, velocitiesn)
-    @time make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
-end
-
-function f2(points, faces, normals, v, zc)
-    @time SG.stabilise!(points, faces, normals, v, zc)
-end
 
 for i in 1:steps
-    println("Step $i")
-    global points2, faces2, con
+    println("----------------------------------------------------------------------------------------------------- Step $i")
+    global points, faces, con, normals
     global t, w, H0
-    global points = copy(points2)
-    global faces = copy(faces2)
+    #global points = copy(points2)
+    #global faces = copy(faces2)
     #global expand, reset_vmax
 
-    normals = Normals(points, faces)
+    edges = make_edges(faces)
+    con = make_connectivity(edges)
+    normals, CDE = make_normals_spline(points, con, edges, normals)
 
     psi = PotentialSimple(points, faces, mu, H0; normals = normals)
     Ht = HtField(points, faces, psi, normals)
     Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
     Hn = normals .* Hn_norms'
-
 
     mup = mu
     # magnitudes squared of the normal force
@@ -157,44 +146,51 @@ for i in 1:steps
 
 
     zc = SG.Zinchenko2013(points, faces, normals)
+
     println("velocity:")
     @time velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
 
-    velocitiesn = normals .* velocitiesn_norms'
+    velocities = normals .* velocitiesn_norms'
+
+    dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    println("dt = $dt")
+
+    #global points_ns = points + velocities * dt
+
+    #passive stabilization
 
 
-    # passive stabilization
-    velocitiesn = SG.stabilise!(points, faces, normals, velocitiesn, zc)
+    velocitiesn = SG.stabilise!(velocities, points, faces, normals, zc)
 
-    points = points + velocitiesn * dt
+    points = points + velocities * dt
 
-    edges = make_edges(faces)
-    con = make_connectivity(edges)
-    con0 = copy(con)
+    #
 
-    println("before ", sum(edges))
-
-    edges0 = copy(edges)
-
+    # con0 = copy(con)
+    #
+    # println("before ", sum(edges))
+    # edges0 = copy(edges)
+    println("paraboloiding ...")
+    #
+    #
     do_active = false
-    #do_active = flip_edges!(faces, con, points)
+    do_active = flip_edges!(faces, con, points)
 
     # println("after")
     # println(con)
     #
     # println("delta")
-    # println(con - con0)
     if i % 1 == 0 || do_active
         if do_active
-            println("re-did edges, step $i")
+            #println("re-did edges, step $i")
             edges = make_edges(faces)
-            println("after re-did sum: ", sum(edges))
+            #println("after re-did sum: ", sum(edges))
         end
 
-        println("OUTSIDE re-did sum: ", sum(edges))
+        #println("OUTSIDE re-did sum: ", sum(edges))
         println("doing active / step $i / flipped?: $do_active")
         normals, CDE = make_normals_spline(points, con, edges, normals)
-        points = active_stabilize(points, faces, CDE, con, normals)
+        points = active_stabilize(points, faces, CDE, con, normals,deltakoef=0.1)
 
     end
 
@@ -241,7 +237,7 @@ for i in 1:steps
     #     if H0[3] >= 3.5
     #         global expand = false
     #     end
-    end
+    #end
 
 
 end
@@ -264,7 +260,7 @@ end
 
 
 
-scene = Makie.mesh(points', faces', color = :gray, shading = false,visible = true)
+scene = Makie.mesh(points', faces', color = :gray, shading = false,visible = false)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
-scene = Makie.mesh!(pointsm', facesm',color = :gray, shading = false,visible = false)
+scene = Makie.mesh!(points_ns', faces',color = :gray, shading = false,visible = false)
 Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)

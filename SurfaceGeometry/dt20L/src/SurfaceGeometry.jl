@@ -1,4 +1,4 @@
-module SurfaceGeometry2
+module SurfaceGeometry
 
 using LinearAlgebra
 eye(n) = Matrix(1.0I, n, n)
