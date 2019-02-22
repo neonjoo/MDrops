@@ -10,7 +10,8 @@ using JLD2
 #include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 #include("./SurfaceGeometry/dt20L/src/ComplexDS.jl")
 include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
-include("./SurfaceGeometry/dt20L/src/Iterators.jl")
+SG = SurfaceGeometry
+#include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 include("./functions.jl")
 include("./mesh_functions.jl")
@@ -112,8 +113,10 @@ for iter in 1:steps
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
     velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    velocitiesn = sum(velocities .* normals,dims=1)
-    SG.stabilise!(points, faces, normals, velocitiesn, zc)
+    velocitiesn = sum(velocities .* normals,dims=1) .* normals
+
+    zc = SG.Zinchenko2013(points, faces, normals)
+    velocities = SG.stabilise!(velocitiesn,points, faces, normals, zc)
 
     dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     #dt2 = 0.4*minl2/maxv2
