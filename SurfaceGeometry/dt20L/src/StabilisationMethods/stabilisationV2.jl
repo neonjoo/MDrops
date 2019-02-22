@@ -150,7 +150,7 @@ function stabilise!(points,faces,n,v,zc::Zinchenko2013; op=:optim)
 end
 
 
-function stabiliseV2Optim!(points,faces,n,v,zc::Zinchenko2013)
+function stabiliseV2Optim!(v, points,faces,n,zc::Zinchenko2013)
     #h2 = hvec(points,faces,n)
 
     function f(x::Vector)
@@ -172,7 +172,7 @@ function stabiliseV2Optim!(points,faces,n,v,zc::Zinchenko2013)
         end
     end
 
-    println("optim:")
+    println("passive stab optimization:")
     @time res = optimize(f,g!,v[:],ConjugateGradient())
     #v[:,:] = reshape(res.minimum, size(v)...)[:,:]
     v[:,:] = reshape(Optim.minimizer(res), size(v)...)[:,:]
