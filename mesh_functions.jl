@@ -167,17 +167,18 @@ function make_normals_spline(points, connectivity, edges, normals0;
     # takes almost 1minute to enter this function from main_lan.jl call
 
 
-    println("entered spline")
+    println("fitting local paraboloids")
+
     CDE = zeros(Float64, size(points)) # 3xN array
-    println("done CDE zeros")
+    #println("done CDE zeros")
     gradPhi = [0.,0.,0.]
-    println("defined grad")
+    #println("defined grad")
     normals = copy(normals0)
-    println("copied normals")
+    #println("copied normals")
     #outer iterations
     for m = 1:max_iters_outer
         #println(m)
-        println("outer step: $m")
+        #println("outer step: $m")
         normalsp = copy(normals) #previous
         for i = 1:size(points,2)
             #inner iterations
@@ -320,8 +321,8 @@ function make_normals_spline(points, connectivity, edges, normals0;
                end
             end
         end
-        println("outer iters:")
-        println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+        #println("outer iters:")
+        #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
             println("paraboloid fit converged")

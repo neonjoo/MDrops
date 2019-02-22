@@ -3,12 +3,13 @@ using CSV
 using Makie
 using StatsBase
 using Optim
-#using JLD2
+using JLD2
 #using SurfaceGeometry
 #using ElTopo
 #using PyPlot
 #include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 #include("./SurfaceGeometry/dt20L/src/ComplexDS.jl")
+include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 include("./functions.jl")
@@ -41,7 +42,7 @@ connectivity = make_connectivity(edges)
 H0 = [0., 0., 1.]
 mu = 30.
 lambda = 10.
-Bm = 20.
+Bm = 25.
 
 #H0 = 33 .* [0, 0, 1]
 #H0 = [0,0,0]
@@ -53,9 +54,19 @@ Bm = 20.
 # last_step = 0
 
 # w = 2*pi/50
-t = 0
-steps = 3
 
+steps = 50
+
+datadir="/home/andris/mydatadirst/"
+if !isdir("$datadir")
+    mkdir("$datadir")
+
+    open("$datadir/_params.txt", "w") do file
+        write(file, "H0=$H0\nmu=$mu\neta=$lambda\nBm=$Bm\nsteps=$steps")
+    end
+
+    println("Created new dir: $datadir")
+end
 
 normals = Normals(points, faces)
 for iter in 1:steps
@@ -66,6 +77,7 @@ for iter in 1:steps
 
 
     (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
+
     psi = PotentialSimple(points, faces, mu, H0; normals = normals)
     #psi2 = PotentialSimple(points2, faces, mu, H0; normals = normals2)
     Ht = HtField(points, faces, psi, normals)
@@ -98,8 +110,10 @@ for iter in 1:steps
 
     #velocities = velocitiesn
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
-    velocities = make_magvelocities(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
 
+    velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    velocitiesn = sum(velocities .* normals,dims=1)
+    SG.stabilise!(points, faces, normals, velocitiesn, zc)
 
     dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     #dt2 = 0.4*minl2/maxv2
@@ -108,7 +122,22 @@ for iter in 1:steps
 
     points += velocities * dt
     #points2 += velocities2 * dt
+    do_active = false
+    do_active = flip_edges!(faces, connectivity, points)
+    edges = make_edges(faces)
 
+    if iter % 20 == 0 || do_active
+
+        println("OUTSIDE re-did sum: ", sum(edges))
+        println("doing active / step $iter / flipped?: $do_active")
+        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+        points = active_stabilize(points, faces, CDE, connectivity, normals,deltakoef=0.1)
+
+    end
+    if iter % 1 == 0
+       data = [points, faces]
+       @save "$datadir/data$(lpad(iter,5,"0")).jld2" data
+   end
 end
 # (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
 # points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=100)
@@ -125,7 +154,7 @@ end
 # (normals2, CDE2) = make_normals_spline(points1, connectivity, edges, normals)
 # points2 = active_stabilize(points1,faces2,CDE2,connectivity,normals2;maxiters=100)
 
-# scene = Makie.mesh(points0', faces',color = :white, shading = false,visible = false)
-# Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
+scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
+Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
 # scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
 # Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)
