@@ -14,6 +14,7 @@ include("./stabilization.jl")
 include("./functions.jl")
 include("./mesh_functions.jl")
 include("./sandbox_lang.jl")
+include("./physics_functions.jl")
 
 points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
 faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
@@ -23,10 +24,7 @@ println("Loaded mesh")
 points = convert(Array, points_csv)
 faces = convert(Array, faces_csv)
 points = Array{Float64}(points')
-points1 = copy(points)
-points2 = copy(points)
 faces = Array{Int64}(faces')
-faces2 = copy(faces)
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
 # H0 = [0, 0, 10]
@@ -37,31 +35,33 @@ connectivity = make_connectivity(edges)
 #
 # dt = 0.01
 # steps = 50
-points = points #.* (4.9 * 10^-1)
+#points = points #.* (4.9 * 10^-1)
 #points2 = copy(points)
 
-H0 = [0, 0, 10]
-
+H0 = [0., 0., 1.]
+mu = 30.
+lambda = 10.
+Bm = 20.
 
 #H0 = 33 .* [0, 0, 1]
 #H0 = [0,0,0]
-mu = 30
-eta = 1
-gamma = 6.9 * 10^-1
 
-continue_sim = false
-last_step = 0
+# eta = 1
+# gamma = 6.9 * 10^-1
 
-w = 2*pi/50
+# continue_sim = false
+# last_step = 0
+
+# w = 2*pi/50
 t = 0
-steps = 10
+steps = 3
 
 
 normals = Normals(points, faces)
 for iter in 1:steps
     println("time step $(iter)")
 
-    global points, points1, points2, faces, faces2, normals, edges, connectivity
+    global points, faces,normals, edges, connectivity
     #global points2
 
 
@@ -89,15 +89,17 @@ for iter in 1:steps
     # make the force normal to surface
     #tensorn = normals .* tensorn
 
-    velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
+    #velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
     #velocitiesn_norms2 = InterfaceSpeedZinchenko(points2, faces, tensorn2, eta, gamma, normals2)
 
-    velocitiesn = normals .* velocitiesn_norms'
+    #velocitiesn = normals .* velocitiesn_norms'
     #velocitiesn2 = normals2 .* velocitiesn_norms2'
 
 
-    velocities = velocitiesn
+    #velocities = velocitiesn
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
+    velocities = make_magvelocities(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
+
 
     dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     #dt2 = 0.4*minl2/maxv2
@@ -108,8 +110,8 @@ for iter in 1:steps
     #points2 += velocities2 * dt
 
 end
-(normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
-points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=100)
+# (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
+# points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=100)
 # for i in 1:size(points,2)
 #     for j in 1:size(points,2)
 #         edges = make_edges(faces2)
