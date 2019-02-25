@@ -139,11 +139,11 @@ function gradF!(points,faces,v,storage,zc::Zinchenko2013)
     end
 end
 
-function stabilise!(points,faces,n,v,zc::Zinchenko2013; op=:optim)
+function stabilise!(v,points,faces,n,zc::Zinchenko2013; op=:optim)
     if op==:optim
-        stabiliseV2Optim!(points,faces,n,v,zc)
+        stabiliseV2Optim!(v,points,faces,n,zc)
     elseif op===:zinchenko
-        stabiliseV2!(points,faces,n,v,zc)
+        stabiliseV2!(v,points,faces,n,zc)
     else
         error("Your requested method is not available")
     end
@@ -173,13 +173,13 @@ function stabiliseV2Optim!(v, points,faces,n,zc::Zinchenko2013)
     end
 
     println("passive stab optimization:")
-    @time res = optimize(f,g!,v[:],ConjugateGradient())
+    res = optimize(f,g!,v[:],ConjugateGradient())
     #v[:,:] = reshape(res.minimum, size(v)...)[:,:]
     v[:,:] = reshape(Optim.minimizer(res), size(v)...)[:,:]
 end
 
 
-function stabiliseV2!(points,faces,n,v,zc::Zinchenko2013)
+function stabiliseV2!(v,points,faces,n,zc::Zinchenko2013)
 
     gradF_v = Array{Float64}(undef,size(points)...)
     gradF!(points,faces,v,gradF_v,zc)

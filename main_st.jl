@@ -10,22 +10,30 @@ using JLD2
 #include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 #include("./SurfaceGeometry/dt20L/src/ComplexDS.jl")
 include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
-include("./SurfaceGeometry/dt20L/src/Iterators.jl")
+SG = SurfaceGeometry
+#include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 include("./functions.jl")
 include("./mesh_functions.jl")
 include("./sandbox_lang.jl")
 include("./physics_functions.jl")
+#
+# points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
+# faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
 
-points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
-faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
 
-println("Loaded mesh")
 
-points = convert(Array, points_csv)
-faces = convert(Array, faces_csv)
-points = Array{Float64}(points')
-faces = Array{Int64}(faces')
+#println("Loaded mesh")
+#
+# points = convert(Array, points_csv)
+# faces = convert(Array, faces_csv)
+# points = Array{Float64}(points')
+# faces = Array{Int64}(faces')
+
+points, faces = expand_icosamesh(;R=1,depth=3)
+points = Array{Float64}(points)
+faces = Array{Int64}(faces)
+
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
 # H0 = [0, 0, 10]
@@ -55,9 +63,9 @@ Bm = 25.
 
 # w = 2*pi/50
 
-steps = 50
+steps = 1000
 
-datadir="/home/andris/mydatadirst/"
+datadir="/home/andris/mydatadirst_weekend/"
 if !isdir("$datadir")
     mkdir("$datadir")
 
@@ -67,12 +75,12 @@ if !isdir("$datadir")
 
     println("Created new dir: $datadir")
 end
-
+t = 0.
 normals = Normals(points, faces)
 for iter in 1:steps
     println("time step $(iter)")
 
-    global points, faces,normals, edges, connectivity
+    global points, faces,normals, edges, connectivity, t
     #global points2
 
 
@@ -112,10 +120,13 @@ for iter in 1:steps
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
     velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    velocitiesn = sum(velocities .* normals,dims=1)
-    SG.stabilise!(points, faces, normals, velocitiesn, zc)
+    velocities = sum(velocities .* normals,dims=1) .* normals
 
-    dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    zc = SG.Zinchenko2013(points, faces, normals)
+    SG.stabilise!(velocities,points, faces, normals, zc)
+
+    dt = 0.3*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    t += dt
     #dt2 = 0.4*minl2/maxv2
     println("dt = $(dt)")
     #println("dt2 = $(dt2)")
@@ -135,10 +146,11 @@ for iter in 1:steps
 
     end
     if iter % 1 == 0
-       data = [points, faces]
+       data = [points, faces, t]
        @save "$datadir/data$(lpad(iter,5,"0")).jld2" data
    end
 end
+println("hooray calculation Finnished!!!! :-)")
 # (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
 # points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=100)
 # for i in 1:size(points,2)
@@ -154,7 +166,7 @@ end
 # (normals2, CDE2) = make_normals_spline(points1, connectivity, edges, normals)
 # points2 = active_stabilize(points1,faces2,CDE2,connectivity,normals2;maxiters=100)
 
-scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
-Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
+#scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
+#Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
 # scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
 # Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)
