@@ -678,10 +678,7 @@ function flip_edges!(faces, connectivity, vertices)
                 continue
             end
 
-            for j in i+1:maxx
-                if !(j in connectivity[:,i])
-                    continue
-                end
+            for j in filter(x -> x>0, connectivity[:,i])
 
                 # num of j-th vertex neighbors
                 j_num = length(filter(x -> x>0, connectivity[:,j]))
@@ -760,33 +757,38 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
     end # end s for
 
 
-    for s in 1:size(connectivity,2)
-        if length(intersect([j,k,m], connectivity[:,s])) == 3
-            # row of j in i-th column etc.
-            row_j_in_i = findfirst(x-> x==j, connectivity[:,s])
-            row_i_in_j = findfirst(x-> x==i, connectivity[:,j])
-            row_k_in_m = findfirst(x-> x==0, connectivity[:,m])
-            row_m_in_k = findfirst(x-> x==0, connectivity[:,k])
+    # row of j in i-th column etc.
+    row_j_in_i = findfirst(x-> x==j, connectivity[:,i])
+    row_i_in_j = findfirst(x-> x==i, connectivity[:,j])
+    row_k_in_m = findfirst(x-> x==0, connectivity[:,m])
+    row_m_in_k = findfirst(x-> x==0, connectivity[:,k])
 
-            # cut the i--j edge in "connectivity" by sliding column values up 1 row, placing 0 in the end
-            connectivity[row_i_in_j:end, j] = [connectivity[row_i_in_j+1:end, j]; 0]
-            connectivity[row_j_in_i:end, s] = [connectivity[row_j_in_i+1:end, s]; 0]
+    # cut the i--j edge in "connectivity" by sliding column values up 1 row, placing 0 in the end
+    connectivity[row_i_in_j:end, j] = [connectivity[row_i_in_j+1:end, j]; 0]
+    connectivity[row_j_in_i:end, i] = [connectivity[row_j_in_i+1:end, i]; 0]
 
-            # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
-            if row_k_in_m == nothing || row_m_in_k == nothing
-                println("padded row of 0s on bottom of \"connectivity\"")
-                connectivity = vcat(connectivity, zeros(1, size(connectivity,2)))
-                connectivity[end, m] = k
-                connectivity[end, k] = m
-                continue
-            end
+    # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
+    if row_k_in_m == nothing || row_m_in_k == nothing
+        println("padded row of 0s on bottom of \"connectivity\"")
+        connectivity = vcat(connectivity, zeros(1, size(connectivity,2))).
 
+        if row_k_in_m == nothing
+            connectivity[end, m] = k
+        else
             connectivity[row_k_in_m, m] = k
+        end
+
+        if row_m_in_k == nothing
+            connectivity[end, k] = m
+        else
             connectivity[row_m_in_k, k] = m
+        end
 
-        end # end if
+    else
+        connectivity[row_k_in_m, m] = k
+        connectivity[row_m_in_k, k] = m
+    end # end if
 
-    end # end s for
 
 end # end function
 

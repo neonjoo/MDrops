@@ -7,3 +7,4 @@ packages/lib
 packages/v0.4
 .cache/
 *.juliahistory
+read_and_plot0.jl
