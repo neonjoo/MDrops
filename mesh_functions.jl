@@ -167,27 +167,14 @@ function make_normals_spline(points, connectivity, edges, normals0;
     # takes almost 1minute to enter this function from main_lan.jl call
 
 
-<<<<<<< HEAD
     println("fitting local paraboloids")
 
     CDE = zeros(Float64, size(points)) # 3xN array
-    #println("done CDE zeros")
-    gradPhi = [0.,0.,0.]
-    #println("defined grad")
-    normals = copy(normals0)
-    #println("copied normals")
-    #outer iterations
-    for m = 1:max_iters_outer
-        #println(m)
-        #println("outer step: $m")
-=======
-    CDE = zeros(Float64, size(points)) # 3xN array
     gradPhi = [0.,0.,0.]
     normals = copy(normals0)
     #outer iterations
     for m = 1:max_iters_outer
         #println(m)
->>>>>>> 728e7ff6159d7850705fc10a7bdf8b16ad5da467
         normalsp = copy(normals) #previous
         for i = 1:size(points,2)
             #inner iterations
@@ -330,12 +317,10 @@ function make_normals_spline(points, connectivity, edges, normals0;
                end
             end
         end
-<<<<<<< HEAD
         #println("outer iters:")
         #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
-=======
+
         println("spline outer iter $m ,cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
->>>>>>> 728e7ff6159d7850705fc10a7bdf8b16ad5da467
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
             println("paraboloid fit converged")
@@ -388,8 +373,8 @@ function project_on_drop(points::Array{Float64,2},CDE::Array{Float64,2},normals:
     end
 
     x0 = [r0[1],r0[2]]
-    # ,Optim.Options(f_tol=1.e-10)
-    res = Optim.optimize(f,g!,h!,x0,NewtonTrustRegion())
+
+    res = Optim.optimize(f,g!,h!,x0,NewtonTrustRegion(),Optim.Options(f_tol=1.e-8))
     #println(res)
     x1 = Optim.minimizer(res)[1]
     x2 = Optim.minimizer(res)[2]

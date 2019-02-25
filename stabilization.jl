@@ -277,7 +277,7 @@ function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIte
     # vertices = vertices'
     # normals = normals'
     # vvecs = vvecs'
-
+    println("passive stabbing")
     # first gradient descent
     f = make_tanggradF(normals,triangles, vertices, vvecs)
     gradFv = make_gradF(normals, triangles, vertices, vvecs)
