@@ -63,9 +63,9 @@ Bm = 25.
 
 # w = 2*pi/50
 
-steps = 50
+steps = 1000
 
-datadir="/home/andris/mydatadirst/"
+datadir="/home/andris/mydatadirst_weekend/"
 if !isdir("$datadir")
     mkdir("$datadir")
 
@@ -75,12 +75,12 @@ if !isdir("$datadir")
 
     println("Created new dir: $datadir")
 end
-
+t = 0.
 normals = Normals(points, faces)
 for iter in 1:steps
     println("time step $(iter)")
 
-    global points, faces,normals, edges, connectivity
+    global points, faces,normals, edges, connectivity, t
     #global points2
 
 
@@ -125,7 +125,8 @@ for iter in 1:steps
     zc = SG.Zinchenko2013(points, faces, normals)
     SG.stabilise!(velocities,points, faces, normals, zc)
 
-    dt = 0.5*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    dt = 0.3*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    t += dt
     #dt2 = 0.4*minl2/maxv2
     println("dt = $(dt)")
     #println("dt2 = $(dt2)")
@@ -145,10 +146,11 @@ for iter in 1:steps
 
     end
     if iter % 1 == 0
-       data = [points, faces]
+       data = [points, faces, t]
        @save "$datadir/data$(lpad(iter,5,"0")).jld2" data
    end
 end
+println("hooray calculation Finnished!!!! :-)")
 # (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
 # points1 = active_stabilize(points,faces,CDE,connectivity,normals;maxiters=100)
 # for i in 1:size(points,2)
@@ -164,7 +166,7 @@ end
 # (normals2, CDE2) = make_normals_spline(points1, connectivity, edges, normals)
 # points2 = active_stabilize(points1,faces2,CDE2,connectivity,normals2;maxiters=100)
 
-scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
-Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
+#scene = Makie.mesh(points', faces',color = :white, shading = false,visible = true)
+#Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
 # scene = Makie.mesh!(points2', faces',color = :gray, shading = false,visible = true)
 # Makie.wireframe!(scene[end][1], color = :blue, linewidth = 1,visible = true)

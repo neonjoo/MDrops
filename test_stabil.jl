@@ -1,50 +1,50 @@
-using LinearAlgebra
-using CSV
 using Makie
-using StatsBase
-using Optim
-#using JLD2
-#using SurfaceGeometry
-#using ElTopo
-#using PyPlot
-#include("./SurfaceGeometry/dt20L/src/Iterators.jl")
-#include("./SurfaceGeometry/dt20L/src/ComplexDS.jl")
-include("./SurfaceGeometry/dt20L/src/Iterators.jl")
-include("./stabilization.jl")
-include("./functions.jl")
-include("./mesh_functions.jl")
-include("./sandbox_lang.jl")
+using FileIO
+using JLD2
 
-points_csv= CSV.read("./meshes/points_bad_ball.csv", header=0)
-faces_csv = CSV.read("./meshes/faces_bad_ball.csv", header=0)
+datadir="/home/andris/mydatadirst_weekend/"
 
-println("Loaded mesh")
+files = readdir(datadir)
+for file in files
+    @load "$datadir/$file" data
 
-points = convert(Array, points_csv)
-faces = convert(Array, faces_csv)
-points = Array{Float64}(points')
-faces = Array{Int64}(faces')
+    points2, faces2, dt = data[1], data[2], data[3]
+    faces2 = Array{Int64,2}(faces2)
 
-points2 = copy(points)
-faces2 = copy(faces)
 
-edges = make_edges(faces)
-connectivity = make_connectivity(edges)
-normals = Normals(points, faces)
-normals, CDE = make_normals_spline(points, connectivity, edges, normals)
-closefaces = make_closefaces(faces)
+    edges2 = make_edges(faces2)
+    connectivity = make_connectivity(edges2)
 
-#points2 = active_stabilize(points,faces,CDE,connectivity,normals,deltakoef=0.1,critSc = 0.999,critCdelta = 1.001)#,critSc = 0.75,critCdelta = 1.15)
-for i = 1:3
-    global faces2,connectivity,points2, CDE, normals
-    println("starting stabilization")
-    flip_edges!(faces2,connectivity,points2)
-    edges = make_edges(faces2)
-    normals, CDE = make_normals_spline(points2, connectivity, edges, normals)
-    points2 = active_stabilize(points2,faces2,CDE,connectivity,normals,deltakoef=0.1,critSc = 0.999,critCdelta = 1.001)#,critSc = 0.75,critCdelta = 1.15)
+    minvalence = minimum(sum(x->x!=0,connectivity,dims=1))
+
+    println("file = $file"," minvalence = $minvalence")
+
 end
 
-# scene = Makie.mesh(points', faces',color = :white, shading = false,visible = false)
-# Makie.wireframe!(scene[end][1], color = :black, linewidth = 2)
-# scene = Makie.mesh(points', faces2',color = :gray, shading = false,visible = true)
-# Makie.wireframe!(scene[end][1], color = :blue, linewidth = 2,visible = true)
+
+
+
+
+
+#
+# # fix hardcoding
+# global data
+# @load "$datadir/$last_file" data
+# #@load "$datadir/data00050.jld2" data
+#
+# points2, faces2 = data[1], data[2]
+# faces2 = Array{Int64,2}(faces2)
+#
+# println("plotting")
+# println(size(points2))
+# println(size(faces2))
+# scene = Makie.mesh(points2', faces2',color = :white, shading = false,visible = true)
+# Makie.wireframe!(scene[end][1], color = :black, linewidth = 1)
+# display(scene)
+# cam = Makie.cameracontrols(scene)
+# cam.upvector[] = (0.0, 0.0, 1.0)
+# update_cam!(scene, cam)
+# scene.center = false
+# scene
+# FileIO.save("plot.png", scene)
+# readline(stdin)
