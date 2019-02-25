@@ -482,7 +482,7 @@ function project_on_drop(points::Array{Float64,2},CDE::Array{Float64,2},normals:
     return r0
 end
 
-function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::Array{Float64,2},connectivity::Array{Int64,2},normals::Array{Float64,2};
+function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::Array{Float64,2},connectivity::Array{Int64,2},edges::Array{Int64,2},normals::Array{Float64,2};
     deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
     # actively rearange vertices on a surfaces given by fitted paraboloids
     # as per Zinchenko(2013)
