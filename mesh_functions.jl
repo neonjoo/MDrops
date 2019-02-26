@@ -770,7 +770,11 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
     # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
     if row_k_in_m == nothing || row_m_in_k == nothing
         println("padded row of 0s on bottom of \"connectivity\"")
+<<<<<<< HEAD
         connectivity = vcat(connectivity, zeros(1, size(connectivity,2)))
+=======
+        connectivity = vcat(connectivity, zeros(Int64,1, size(connectivity,2)))
+>>>>>>> 6945208dcb2ec7f559da5f0134fb1050da7fe274
 
         if row_k_in_m == nothing
             connectivity[end, m] = k
