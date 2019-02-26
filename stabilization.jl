@@ -319,7 +319,11 @@ function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIte
         #println((Fp-F)/F)
 
         if (Fp - F)/F < epsilon
+            println("improved tangential velocities")
             break
+        end
+        if i == maxIters
+            println("tangential velocities not fully converged")
         end
     end
 
