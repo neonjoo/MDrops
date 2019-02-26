@@ -63,9 +63,9 @@ Bm = 25.
 
 # w = 2*pi/50
 
-steps = 1000
+steps = 50
 
-datadir="/home/andris/mydatadirst_weekend/"
+datadir="/home/andris/mydatadirst_tuesday_erdmanstabilitytest/"
 if !isdir("$datadir")
     mkdir("$datadir")
 
@@ -78,7 +78,7 @@ end
 t = 0.
 normals = Normals(points, faces)
 for iter in 1:steps
-    println("time step $(iter)")
+    println("--------------time step $(iter)---------------------")
 
     global points, faces,normals, edges, connectivity, t
     #global points2
@@ -120,10 +120,12 @@ for iter in 1:steps
     #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
     velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    velocities = sum(velocities .* normals,dims=1) .* normals
 
-    zc = SG.Zinchenko2013(points, faces, normals)
-    SG.stabilise!(velocities,points, faces, normals, zc)
+    velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
+    #velocities = sum(velocities .* normals,dims=1) .* normals
+
+    #zc = SG.Zinchenko2013(points, faces, normals)
+    #SG.stabilise!(velocities,points, faces, normals, zc)
 
     dt = 0.3*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
     t += dt
@@ -136,6 +138,7 @@ for iter in 1:steps
     do_active = false
     do_active = flip_edges!(faces, connectivity, points)
     edges = make_edges(faces)
+    connectivity = make_connectivity(edges)
 
     if iter % 20 == 0 || do_active
 
@@ -148,7 +151,7 @@ for iter in 1:steps
     if iter % 1 == 0
        data = [points, faces, t]
        @save "$datadir/data$(lpad(iter,5,"0")).jld2" data
-   end
+    end
 end
 println("hooray calculation Finnished!!!! :-)")
 # (normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
