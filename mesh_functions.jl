@@ -253,7 +253,7 @@ end
 
 function make_normals_spline(points, connectivity, edges, normals0;
                     Cs=1.0, eps_inner=1e-5, eps_outer=1e-4,
-                    max_iters_inner=1000, max_iters_outer=1000)
+                    max_iters_inner=1000, max_iters_outer=100)
     #returns improved normals and CDE - parameters of locally fitted paraboloid
     #z = C*x^2+D*x*y+E*y^2
     #Cs is a coupling parameter. Zinchencko(2000) sets it to 1
@@ -721,7 +721,7 @@ function flip_edges!(faces, connectivity, vertices)
     end # end while
 
     # returns true if any edge was flipped. If so, active stabilization is to be applied
-    println("Flipped any?  $flipped_any")
+    println("--------- Flipped any?  $flipped_any ---- ")
     return flipped_any
 
 end # end function

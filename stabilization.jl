@@ -269,10 +269,10 @@ function make_gradF(normals,triangles, vertices, V)
 
 function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIters)
 
-# [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
-# LAMBDA = k1.^2 + k2.^2 + 0.004
-# K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
-# hsq = K * LAMBDA.^(-0.25)
+    # [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
+    # LAMBDA = k1.^2 + k2.^2 + 0.004
+    # K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
+    # hsq = K * LAMBDA.^(-0.25)
     # triangles = triangles'
     # vertices = vertices'
     # normals = normals'
