@@ -708,7 +708,7 @@ function flip_edges!(faces, connectivity, vertices)
                     #println("--------------------- flippening $i--$j to $k--$m")
                     flip_connectivity!(faces, connectivity, i, j, k, m)
                     continue_flip = true
-                    # break
+                    break
                 end
 
             end # end j for
