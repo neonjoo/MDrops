@@ -658,7 +658,7 @@ end
 
 
 
-function flip_edges!(faces, connectivity, vertices)
+function flip_edges(faces, connectivity, vertices)
     # flip edges to improve mesh, updates "faces" and "connectivity"
 
     println("flipping edges")
@@ -706,7 +706,7 @@ function flip_edges!(faces, connectivity, vertices)
 
                 if norm(xk - xm)^2 < d
                     #println("--------------------- flippening $i--$j to $k--$m")
-                    flip_connectivity!(faces, connectivity, i, j, k, m)
+                    faces, connectivity = flip_connectivity(faces, connectivity, i, j, k, m)
                     continue_flip = true
                     break
                 end
@@ -722,14 +722,16 @@ function flip_edges!(faces, connectivity, vertices)
 
     # returns true if any edge was flipped. If so, active stabilization is to be applied
     println("--------- Flipped any?  $flipped_any ---- ")
-    return flipped_any
+    return faces, connectivity, flipped_any
 
 end # end function
 
 
-function flip_connectivity!(faces, connectivity, i, j, k, m)
+function flip_connectivity(faces, connectivity, i, j, k, m)
     # adjusts faces & connectivity to the i--j  ->  k--m edge flip
 
+    println()
+    println("entered flip_con ---------------------")
     found_one, found_two = false, false
     for s in 1:size(faces,2)
         # finds first(and only) column where all 3 indices appear and adjusts indices
@@ -773,6 +775,9 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
 
         connectivity = vcat(connectivity, zeros(Int64,1, size(connectivity,2)))
 
+        println("con size after pad: $(size(connectivity))")
+        println("last line sum, before: $(sum(connectivity[end,:]))")
+
         if row_k_in_m == nothing
             connectivity[end, m] = k
         else
@@ -785,12 +790,14 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
             connectivity[row_m_in_k, k] = m
         end
 
+        println("k = $k, m = $m, last line sum, after: $(sum(connectivity[end,:]))")
     else
         connectivity[row_k_in_m, m] = k
         connectivity[row_m_in_k, k] = m
     end # end if
 
-
+    println("-------- size in the end: $(size(connectivity))")
+    return faces, connectivity
 end # end function
 
 
