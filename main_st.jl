@@ -65,7 +65,7 @@ Bm = 25.
 
 steps = 50
 
-datadir="/home/andris/mydatadirst_tuesday_erdmanstabilitytest_no_CDE_change/"
+datadir="/home/andris/mydatadirst_thursday_same_but_langfix/"
 if !isdir("$datadir")
     mkdir("$datadir")
 

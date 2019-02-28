@@ -870,7 +870,7 @@ function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
     return V
 end
 
-function make_F(triangles, vertices, V)
+function make_F(triangles, vertices, V, hsq)
 
     Ntriangles = size(triangles, 2)
 
@@ -885,9 +885,9 @@ function make_F(triangles, vertices, V)
              V[:,triangles[2,i]],
              V[:,triangles[3,i]]]
 
-        # this_hsq = [hsq[triangles[i,1]]
-        #             hsq[triangles[i,2]]
-        #             hsq[triangles[i,3]]]
+        this_hsq = [hsq[triangles[1,i]],
+                    hsq[triangles[2,i]],
+                    hsq[triangles[3,i]]]
 
         a = norm(x[2] - x[1])
         b = norm(x[3] - x[2])
@@ -921,9 +921,9 @@ function make_F(triangles, vertices, V)
         #     2*( dot(x[1,:] - x[3,:], v[1,:] - v[3,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4) )^2
 
         F = F + 0.4 / Cdelta^2 * dCdeltadt^2 +
-            2*( dot(x[2] - x[1], v[2] - v[1]))^2 +
-            2*( dot(x[3] - x[2], v[3] - v[2]))^2 +
-            2*( dot(x[1] - x[3], v[1] - v[3]))^2
+            2*( dot(x[2] - x[1], v[2] - v[1]))^2 * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4) )^2 +
+            2*( dot(x[3] - x[2], v[3] - v[2]))^2 * (1/(0.5*(this_hsq[3] + this_hsq[2])) - 0.5*(this_hsq[3] + this_hsq[2]) / b^4) )^2 +
+            2*( dot(x[1] - x[3], v[1] - v[3]))^2 * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4) )^2
 
     end
 

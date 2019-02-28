@@ -3,7 +3,7 @@ using FileIO
 using JLD2
 
 datadir="/home/andris/mydatadirst_monday_contest/"
-datadir2="/home/andris/mydatadirst_tuesday_erdmanstabilitytest_no_CDE_change"
+datadir2="/home/andris/mydatadirst_thursday_same_but_langfix"
 
 last_file = readdir(datadir2)[end]
 println(last_file)
