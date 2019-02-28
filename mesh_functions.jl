@@ -770,11 +770,7 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
     # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
     if row_k_in_m == nothing || row_m_in_k == nothing
         println("padded row of 0s on bottom of \"connectivity\"")
-<<<<<<< HEAD
-        connectivity = vcat(connectivity, zeros(1, size(connectivity,2)))
-=======
         connectivity = vcat(connectivity, zeros(Int64,1, size(connectivity,2)))
->>>>>>> 6945208dcb2ec7f559da5f0134fb1050da7fe274
 
         if row_k_in_m == nothing
             connectivity[end, m] = k
@@ -810,17 +806,17 @@ function find_circumcenter(x1, x2, x3)
 
 end
 
-function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
+function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters;
+                        R0=1.0, gamma=0.25)
 
-# [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
-# LAMBDA = k1.^2 + k2.^2 + 0.004
-# K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
-# hsq = K * LAMBDA.^(-0.25)
-    # triangles = triangles'
-    # vertices = vertices'
-    # normals = normals'
-    # vvecs = vvecs'
     println("passive stabbing")
+
+    dS = make_dS(points,faces)
+    k1,k2 = make_pc(CDE)
+    LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+    K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+    hsq = K * LAMBDA.^(-gamma)
+
     # first gradient descent
     f = make_tanggradF(normals,triangles, vertices, vvecs)
     gradFv = make_gradF(normals, triangles, vertices, vvecs)
@@ -873,7 +869,7 @@ function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
     return V
 end
 
-function make_F(triangles, vertices, V)
+function make_F(triangles, vertices, V, hsq)
 
     Ntriangles = size(triangles, 2)
 

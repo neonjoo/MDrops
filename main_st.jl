@@ -65,7 +65,7 @@ Bm = 25.
 
 steps = 50
 
-datadir="/home/andris/mydatadirst_tuesday_erdmanstabilitytest/"
+datadir="/home/andris/mydatadirst_tuesday_erdmanstabilitytest_no_CDE_change/"
 if !isdir("$datadir")
     mkdir("$datadir")
 
@@ -134,6 +134,7 @@ for iter in 1:steps
     #println("dt2 = $(dt2)")
 
     points += velocities * dt
+    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     #points2 += velocities2 * dt
     do_active = false
     do_active = flip_edges!(faces, connectivity, points)
@@ -144,7 +145,6 @@ for iter in 1:steps
 
         println("OUTSIDE re-did sum: ", sum(edges))
         println("doing active / step $iter / flipped?: $do_active")
-        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
         points = active_stabilize(points, faces, CDE, connectivity,edges, normals,deltakoef=0.1)
 
     end
