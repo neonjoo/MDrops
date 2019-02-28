@@ -63,9 +63,9 @@ Bm = 25.
 
 # w = 2*pi/50
 
-steps = 50
+steps = 200
 
-datadir="/home/andris/mydatadirst_thursday_same_but_langfix/"
+datadir="/home/andris/sim_data/pushing_to_limit_langfix/"
 if !isdir("$datadir")
     mkdir("$datadir")
 
@@ -137,7 +137,7 @@ for iter in 1:steps
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     #points2 += velocities2 * dt
     do_active = false
-    do_active = flip_edges!(faces, connectivity, points)
+    faces, connectivity, do_active = flip_edges!(faces, connectivity, points)
     edges = make_edges(faces)
     connectivity = make_connectivity(edges)
 
