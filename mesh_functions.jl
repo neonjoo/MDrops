@@ -253,7 +253,7 @@ end
 
 function make_normals_spline(points, connectivity, edges, normals0;
                     Cs=1.0, eps_inner=1e-5, eps_outer=1e-4,
-                    max_iters_inner=1000, max_iters_outer=1000)
+                    max_iters_inner=1000, max_iters_outer=100)
     #returns improved normals and CDE - parameters of locally fitted paraboloid
     #z = C*x^2+D*x*y+E*y^2
     #Cs is a coupling parameter. Zinchencko(2000) sets it to 1
@@ -708,7 +708,7 @@ function flip_edges!(faces, connectivity, vertices)
                     #println("--------------------- flippening $i--$j to $k--$m")
                     flip_connectivity!(faces, connectivity, i, j, k, m)
                     continue_flip = true
-                    # break
+                    break
                 end
 
             end # end j for
@@ -721,7 +721,7 @@ function flip_edges!(faces, connectivity, vertices)
     end # end while
 
     # returns true if any edge was flipped. If so, active stabilization is to be applied
-    println("Flipped any?  $flipped_any")
+    println("--------- Flipped any?  $flipped_any ---- ")
     return flipped_any
 
 end # end function
@@ -770,6 +770,7 @@ function flip_connectivity!(faces, connectivity, i, j, k, m)
     # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
     if row_k_in_m == nothing || row_m_in_k == nothing
         println("padded row of 0s on bottom of \"connectivity\"")
+
         connectivity = vcat(connectivity, zeros(Int64,1, size(connectivity,2)))
 
         if row_k_in_m == nothing
@@ -806,17 +807,17 @@ function find_circumcenter(x1, x2, x3)
 
 end
 
-function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters;
-                        R0=1.0, gamma=0.25)
+function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
 
+# [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
+# LAMBDA = k1.^2 + k2.^2 + 0.004
+# K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
+# hsq = K * LAMBDA.^(-0.25)
+    # triangles = triangles'
+    # vertices = vertices'
+    # normals = normals'
+    # vvecs = vvecs'
     println("passive stabbing")
-
-    dS = make_dS(points,faces)
-    k1,k2 = make_pc(CDE)
-    LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
-    K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
-    hsq = K * LAMBDA.^(-gamma)
-
     # first gradient descent
     f = make_tanggradF(normals,triangles, vertices, vvecs)
     gradFv = make_gradF(normals, triangles, vertices, vvecs)
@@ -869,7 +870,7 @@ function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters;
     return V
 end
 
-function make_F(triangles, vertices, V, hsq)
+function make_F(triangles, vertices, V)
 
     Ntriangles = size(triangles, 2)
 
