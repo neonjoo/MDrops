@@ -137,7 +137,7 @@ for iter in 1:steps
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     #points2 += velocities2 * dt
     do_active = false
-    faces, connectivity, do_active = flip_edges!(faces, connectivity, points)
+    faces, connectivity, do_active = flip_edges(faces, connectivity, points)
     edges = make_edges(faces)
     connectivity = make_connectivity(edges)
 
@@ -145,7 +145,7 @@ for iter in 1:steps
 
         println("OUTSIDE re-did sum: ", sum(edges))
         println("doing active / step $iter / flipped?: $do_active")
-        points = active_stabilize(points, faces, CDE, connectivity,edges, normals,deltakoef=0.1)
+        points = active_stabilize(points, faces, CDE, connectivity,edges, normals,deltakoef=0.05)
 
     end
     if iter % 1 == 0

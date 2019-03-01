@@ -3,7 +3,7 @@ using JLD2
 using FileIO
 
 
-dir = "mydatadirst_thursday_same_but_langfix"
+dir = "pushing_to_limit_langfix"
 sourcedir = "/home/andris/sim_data/$dir"
 outdir="/home/andris/sim_data/pics/$dir"
 len = size(readdir(sourcedir),1) - 1
