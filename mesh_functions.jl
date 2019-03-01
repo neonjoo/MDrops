@@ -730,8 +730,8 @@ end # end function
 function flip_connectivity(faces, connectivity, i, j, k, m)
     # adjusts faces & connectivity to the i--j  ->  k--m edge flip
 
-    println()
-    println("entered flip_con ---------------------")
+    #println()
+    #println("entered flip_con ---------------------")
     found_one, found_two = false, false
     for s in 1:size(faces,2)
         # finds first(and only) column where all 3 indices appear and adjusts indices
@@ -796,7 +796,7 @@ function flip_connectivity(faces, connectivity, i, j, k, m)
         connectivity[row_m_in_k, k] = m
     end # end if
 
-    println("-------- size in the end: $(size(connectivity))")
+    #println("-------- size in the end: $(size(connectivity))")
     return faces, connectivity
 end # end function
 
