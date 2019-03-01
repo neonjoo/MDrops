@@ -30,52 +30,42 @@ include("./physics_functions.jl")
 # points = Array{Float64}(points')
 # faces = Array{Int64}(faces')
 
-points, faces = expand_icosamesh(;R=1,depth=3)
+#points, faces = expand_icosamesh(;R=1,depth=3)
+#points = Array{Float64}(points)
+#faces = Array{Int64}(faces)
+
+dir = "pushing_to_limit_langfix"
+sourcedir = "/home/andris/sim_data/$dir"
+sourcefile = "data00058.jld2"
+@load "$sourcedir/$sourcefile" data
+points = data[1]
+faces = data[2]
 points = Array{Float64}(points)
 faces = Array{Int64}(faces)
+t = data[3]
 
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
-# H0 = [0, 0, 10]
-# eta = 1
-# mu = 30
-# gamma = 6.9 * 10^-1
-# w = 2*pi/50
-#
-# dt = 0.01
-# steps = 50
-#points = points #.* (4.9 * 10^-1)
-#points2 = copy(points)
 
 H0 = [0., 0., 1.]
 mu = 30.
 lambda = 10.
 Bm = 25.
 
-#H0 = 33 .* [0, 0, 1]
-#H0 = [0,0,0]
 
-# eta = 1
-# gamma = 6.9 * 10^-1
+steps = 200
 
-# continue_sim = false
-# last_step = 0
-
-# w = 2*pi/50
-
-steps = 50
-
-datadir="/home/andris/mydatadirst_tuesday_erdmanstabilitytest_no_CDE_change/"
+datadir="/home/andris/sim_data/pushing_to_limit_langfix_extended/"
 if !isdir("$datadir")
     mkdir("$datadir")
 
     open("$datadir/_params.txt", "w") do file
-        write(file, "H0=$H0\nmu=$mu\neta=$lambda\nBm=$Bm\nsteps=$steps")
+        write(file, "H0=$H0\nmu=$mu\neta=$lambda\nBm=$Bm\nsteps=$steps\nfile=$sourcedir/$sourcefile")
     end
 
     println("Created new dir: $datadir")
 end
-t = 0.
+#t = 0.
 normals = Normals(points, faces)
 for iter in 1:steps
     println("--------------time step $(iter)---------------------")
@@ -128,6 +118,7 @@ for iter in 1:steps
     #SG.stabilise!(velocities,points, faces, normals, zc)
 
     dt = 0.3*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    dt = max(0.01,dt)
     t += dt
     #dt2 = 0.4*minl2/maxv2
     println("dt = $(dt)")
@@ -137,7 +128,7 @@ for iter in 1:steps
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     #points2 += velocities2 * dt
     do_active = false
-    do_active = flip_edges!(faces, connectivity, points)
+    faces, connectivity, do_active = flip_edges(faces, connectivity, points)
     edges = make_edges(faces)
     connectivity = make_connectivity(edges)
 
@@ -145,7 +136,7 @@ for iter in 1:steps
 
         println("OUTSIDE re-did sum: ", sum(edges))
         println("doing active / step $iter / flipped?: $do_active")
-        points = active_stabilize(points, faces, CDE, connectivity,edges, normals,deltakoef=0.1)
+        points = active_stabilize(points, faces, CDE, connectivity,edges, normals,deltakoef=0.05)
 
     end
     if iter % 1 == 0
