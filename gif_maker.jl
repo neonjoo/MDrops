@@ -3,9 +3,9 @@ using JLD2
 using FileIO
 
 
-dir = "pushing_to_limit_langfix"
-sourcedir = "/home/andris/sim_data/$dir"
-outdir="/home/andris/sim_data/pics/$dir"
+dir = "random_long2"
+sourcedir = "/home/laigars/sim_data/$dir"
+outdir="/home/laigars/sim_data/pics/$dir"
 len = size(readdir(sourcedir),1) - 1
 
 if !isdir("$outdir")
@@ -14,7 +14,7 @@ end
 
 ratios = []
 steps = []
-for i in 1:len
+for i in [50]
 
     @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
 
@@ -22,17 +22,17 @@ for i in 1:len
     faces_img = data[2]
 
     scene = Makie.mesh(points_img', faces_img', color = :gray, shading = false, visible = true)
-    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-2),(2,2,4)))
+    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-3),(2,2,6)))
     # global ratios, steps
     # ratio = (maximum(points2[3,:]) - minimum(points2[3,:])) / (maximum(points2[1,:]) - minimum(points2[1,:]))
     # push!(ratios, ratio)
     # push!(steps, i)
 
-    #text!(
-    #"$i",
-    #position = (-2, 0,5),
-    #textsize = 1)
-    save("$outdir/$(lpad(i,5,"0")).png", scene)
+    # text!(
+    # "$i",
+    # position = (-2, 0,5),
+    # textsize = 1)
+    #save("$outdir/$(lpad(i,5,"0")).png", scene)
 
 end
 
