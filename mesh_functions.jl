@@ -557,8 +557,13 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
                 println("iterating for ", maxiters - checkiters, " more iterations")
             end
         end
+
+        # e = make_E(points, faces, hsq,p=p, r=r)
+        # println("E = $e")
+
         if iter%100 == 0
             println("iteration ",iter)
+
         end
     end
     return points
@@ -722,6 +727,7 @@ function flip_edges(faces, connectivity, vertices)
 
     # returns true if any edge was flipped. If so, active stabilization is to be applied
     println("--------- Flipped any?  $flipped_any ---- ")
+
     return faces, connectivity, flipped_any
 
 end # end function
@@ -771,12 +777,8 @@ function flip_connectivity(faces, connectivity, i, j, k, m)
 
     # adds a zero row if either of new vertices k or m are connected to some previous maximum connectivity (aka valence)
     if row_k_in_m == nothing || row_m_in_k == nothing
-        println("padded row of 0s on bottom of \"connectivity\"")
 
         connectivity = vcat(connectivity, zeros(Int64,1, size(connectivity,2)))
-
-        println("con size after pad: $(size(connectivity))")
-        println("last line sum, before: $(sum(connectivity[end,:]))")
 
         if row_k_in_m == nothing
             connectivity[end, m] = k
@@ -790,13 +792,11 @@ function flip_connectivity(faces, connectivity, i, j, k, m)
             connectivity[row_m_in_k, k] = m
         end
 
-        println("k = $k, m = $m, last line sum, after: $(sum(connectivity[end,:]))")
     else
         connectivity[row_k_in_m, m] = k
         connectivity[row_m_in_k, k] = m
     end # end if
 
-    #println("-------- size in the end: $(size(connectivity))")
     return faces, connectivity
 end # end function
 
