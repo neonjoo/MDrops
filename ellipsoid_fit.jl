@@ -3,7 +3,7 @@ using JLD2
 using FileIO
 using Optim
 
-dir = "pushing_to_limit_langfix"
+dir = "pushing_to_limit_langfix_extended"
 sourcedir = "/home/andris/sim_data/$dir"
 len = size(readdir(sourcedir),1) - 1
 
