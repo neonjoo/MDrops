@@ -3,24 +3,19 @@ using JLD2
 using FileIO
 
 
-<<<<<<< HEAD:gif_maker
-dir = "pushing_to_limit_langfix_extended"
+dir = "2019-03-12/3"
 sourcedir = "/home/andris/sim_data/$dir"
 outdir="/home/andris/sim_data/pics/$dir"
-=======
-dir = "random_long2"
-sourcedir = "/home/laigars/sim_data/$dir"
-outdir="/home/laigars/sim_data/pics/$dir"
->>>>>>> b8edabf10aa42d3cec4ecce8452492d56acb324e:gif_maker.jl
 len = size(readdir(sourcedir),1) - 1
 
 if !isdir("$outdir")
-    mkdir("$outdir")
+    #mkdir("$outdir")
+    mkpath("$outdir")
 end
 
 ratios = []
 steps = []
-for i in [50]
+for i in 1:len
 
     @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
 
@@ -38,16 +33,16 @@ for i in [50]
     # "$i",
     # position = (-2, 0,5),
     # textsize = 1)
-    #save("$outdir/$(lpad(i,5,"0")).png", scene)
+    save("$outdir/$(lpad(i,5,"0")).png", scene)
 
 end
 
 
-
-scene = Makie.mesh(points_img', faces_img', color = :gray, shading = false, visible = true, )
-Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-2,-2,-4),(4,4,8)))
-
-cam = Makie.cameracontrols(scene)
-cam.upvector[] = (1.0, 0.0, 0)
-update_cam!(scene, cam)
-display(scene)
+#
+# scene = Makie.mesh(points_img', faces_img', color = :gray, shading = false, visible = true, )
+# Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-2,-2,-4),(4,4,8)))
+#
+# cam = Makie.cameracontrols(scene)
+# cam.upvector[] = (1.0, 0.0, 0)
+# update_cam!(scene, cam)
+# display(scene)
