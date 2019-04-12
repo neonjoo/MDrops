@@ -3,7 +3,7 @@ using JLD2
 using FileIO
 
 
-dir = "2019-03-12/3"
+dir = "2019-03-26/3"
 sourcedir = "/home/andris/sim_data/$dir"
 outdir="/home/andris/sim_data/pics/$dir"
 len = size(readdir(sourcedir),1) - 1

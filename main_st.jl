@@ -18,22 +18,28 @@ include("./functions.jl")
 include("./mesh_functions.jl")
 include("./sandbox_lang.jl")
 include("./physics_functions.jl")
-#
-# points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
-# faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
 
+points_csv= CSV.read("./meshes/points_ellipse_manyN.csv", header=0)
+faces_csv = CSV.read("./meshes/faces_ellipse_manyN.csv", header=0)
+println("Loaded mesh")
 
+points = convert(Array, points_csv)
+faces = convert(Array, faces_csv)
+points = Array{Float64}(points')
+faces = Array{Int64}(faces')
 
-#println("Loaded mesh")
-#
-# points = convert(Array, points_csv)
-# faces = convert(Array, faces_csv)
-# points = Array{Float64}(points')
-# faces = Array{Int64}(faces')
+# datadir="/home/andris/sim_data/2019-03-15/1"
+# last_file = readdir(datadir)[end]
+# println("loaded: ",last_file)
+# @load "$datadir/$last_file" data
+# points = data[1]
+# faces = data[2]
+# faces = Array{Int64,2}(faces)
+# t = data[3]
 
-points, faces = expand_icosamesh(;R=1,depth=3)
-points = Array{Float64}(points)
-faces = Array{Int64}(faces)
+#points, faces = expand_icosamesh(;R=1,depth=3)
+#points = Array{Float64}(points)
+#faces = Array{Int64}(faces)
 
 # dir = "pushing_to_limit_langfix_extended"
 # sourcedir = "/home/andris/sim_data/$dir"
@@ -52,12 +58,11 @@ H0 = [0., 0., 1.]
 #omega = 1.
 mu = 30.
 lambda = 10.
-Bm = 2.5
-t = 0.
+Bm = 0.#2.5
 dtsize = 0.3
 #H0 = [cos(omega*t), sin(omega*t), 0.]
 
-steps = 50
+steps = 200
 #
 date = string(Dates.today())
 daydir = "/home/andris/sim_data/$date"
@@ -78,7 +83,7 @@ for i = 1:100
 end
 
 open("$datadir/_params.txt", "w") do file
-    write(file, "H0=$H0\nmu=$mu\neta=$lambda\nBm=$Bm\nsteps=$steps\ndtsize=$dtsize")#\nomega=$omega")
+    write(file, "H0=$H0\nmu=$mu\nlambda=$lambda\nBm=$Bm\nsteps=$steps\ndtsize=$dtsize")#\nomega=$omega")
 end
 
 t = 0.
@@ -109,34 +114,26 @@ for iter in 1:steps
     Ht_2 = sum(Ht.^2, dims=1)
     #Ht2_2 = sum(Ht2.^2, dims=1)
 
-    tensorn = mup*(mup-1)/8/pi * Hn_2 + (mup-1)/8/pi * Ht_2
-    #tensorn2 = mup*(mup-1)/8/pi * Hn2_2 + (mup-1)/8/pi * Ht2_2
+    #tensorn = mup*(mup-1)/8/pi * Hn_2 + (mup-1)/8/pi * Ht_2
 
     # make the force normal to surface
     #tensorn = normals .* tensorn
 
-    #velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
-    #velocitiesn_norms2 = InterfaceSpeedZinchenko(points2, faces, tensorn2, eta, gamma, normals2)
-
+    # eta = 1, gamma = 1.
+    #velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, 1., 1., normals)
     #velocitiesn = normals .* velocitiesn_norms'
-    #velocitiesn2 = normals2 .* velocitiesn_norms2'
-
-
     #velocities = velocitiesn
-    #velocities2 = make_Vvecs_conjgrad(normals,faces, points, velocitiesn, 1e-6, 120)
 
     velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-
     velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
+
     #velocities = sum(velocities .* normals,dims=1) .* normals
 
     #zc = SG.Zinchenko2013(points, faces, normals)
     #SG.stabilise!(velocities,points, faces, normals, zc)
 
-    #dt = 0.3*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
-    #dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
-    dt = dtsize*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
-    #dt = max(0.01,dt)
+    #dt = dtsize*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    dt = 0.3
     t += dt
     #dt2 = 0.4*minl2/maxv2
     println("dt = $(dt)")
@@ -146,9 +143,9 @@ for iter in 1:steps
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     #points2 += velocities2 * dt
     do_active = false
-    #faces, connectivity, do_active = flip_edges(faces, connectivity, points)
-    #edges = make_edges(faces)
-    #connectivity = make_connectivity(edges)
+    faces, connectivity, do_active = flip_edges(faces, connectivity, points)
+    edges = make_edges(faces)
+    connectivity = make_connectivity(edges)
 
     if iter % 20 == 0 || do_active
 
