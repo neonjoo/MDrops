@@ -4,7 +4,9 @@ using FileIO
 using Optim
 
 dir = "2019-03-26/3"
-sourcedir = "/home/andris/sim_data/$dir"
+#sourcedir = "/home/andris/sim_data/$dir"
+sourcedir = "/home/joo/sim_data/collapse_ellipse_zinch8/"
+
 len = size(readdir(sourcedir),1) - 1
 
 
@@ -40,7 +42,7 @@ using PyPlot
 PyPlot.plot(ts[1:end],D[1:end],".")
 
 dir = "2019-03-26/2"
-sourcedir = "/home/andris/sim_data/$dir"
+#sourcedir = "/home/andris/sim_data/$dir"
 len2 = size(readdir(sourcedir),1) - 1
 #len=0
 
@@ -50,6 +52,7 @@ len2 = size(readdir(sourcedir),1) - 1
 # ts = zeros(Float64,len2)
 # a_over_b = zeros(Float64,len2)
 for i in 1:len2
+
     global ts, a_over_b
     @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
 
@@ -75,10 +78,17 @@ for i in 1:len2
 end
 
 using PyPlot
-PyPlot.plot(ts[1:end],D[1:end],".")
-#lambda = 10.
-#τ = (16+19*lambda)*(3+2*lambda)/(40+40*lambda)
-#logD0 = log(D[end]) + ts[end]/τ
-#teorlogD = logD0 .- ts/τ
-#PyPlot.plot(ts[1:end],teorlogD[1:end],"-")
-#PyPlot.plot(vec(1:length(sqrt.(sum(velocities.^2,dims=1)))),sort(vec(sqrt.(sum(velocities.^2,dims=1)))))
+
+pygui()
+figure()
+
+p.plot(ts[1:end],D[1:end])#,".")
+lambda = 1.
+τ = (16+19*lambda)*(3+2*lambda)/(40+40*lambda)
+logD0 = log(D[end]) + ts[end]/τ
+teorlogD = logD0 .- ts/τ
+
+p.plot(ts[1:end],teorlogD[1:end], label="teor")#,"-")
+p.title!("$sourcedir")
+p.plot!(ts[1:end],log.(D[1:end]), label="num")
+#p.plot(vec(1:length(sqrt.(sum(velocities.^2,dims=1)))),sort(vec(sqrt.(sum(velocities.^2,dims=1)))))
