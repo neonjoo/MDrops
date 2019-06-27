@@ -83,20 +83,17 @@ end
 
 finals = []
 finals2 = []
-
 for arr in all_es
     final = shank(arr[end-2:end])
-    push!(finals, final)
-    if length(arr) < 4
-	final2 = -1
-    else
-        final2 = shank(arr[end-3:end-1])
-    end
+    push!(fi
+nals, final)
+	if length(arr) < 4
+		push!(finals2, -1)		continue
+	end
+	final = shank(arr[end-3:end-1])
+	push!(finals2, final)
 
-    push!(finals2, final2)
-
-    println("1st: $final, 2nd: $final2, delta: $((final-final2)/final)")
-
+	println("first: $
 end
 
 println("finals new: $finals")

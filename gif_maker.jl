@@ -3,9 +3,9 @@ using JLD2
 using FileIO
 
 
-dir = "2019-03-26/3"
-sourcedir = "/home/andris/sim_data/$dir"
-outdir="/home/andris/sim_data/pics/$dir"
+dir = "elong_sphere_zinch4"
+sourcedir = "/home/laigars/sim_data/$dir"
+outdir="/home/laigars/sim_data/pics/$dir"
 len = size(readdir(sourcedir),1) - 1
 
 if !isdir("$outdir")
@@ -15,15 +15,18 @@ end
 
 ratios = []
 steps = []
-for i in 1:len
-
+for i in 5:100:50000
+    #i =
     @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
-
+    println("step $i")
     points_img = data[1]
     faces_img = data[2]
 
     scene = Makie.mesh(points_img', faces_img', color = :gray, shading = false, visible = true)
-    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-3),(2,2,6)))
+    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-3),(3,3,6)))
+
+
+
     # global ratios, steps
     # ratio = (maximum(points2[3,:]) - minimum(points2[3,:])) / (maximum(points2[1,:]) - minimum(points2[1,:]))
     # push!(ratios, ratio)
