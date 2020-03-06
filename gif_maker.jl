@@ -3,7 +3,7 @@ using JLD2
 using FileIO
 
 
-dir = "elong_sphere_zinch4"
+dir = "rotating_fast_11"
 sourcedir = "/home/laigars/sim_data/$dir"
 outdir="/home/laigars/sim_data/pics/$dir"
 len = size(readdir(sourcedir),1) - 1
@@ -15,16 +15,15 @@ end
 
 ratios = []
 steps = []
-for i in 5:100:50000
-    #i =
-    @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
-    println("step $i")
+for f in readdir(sourcedir)[2:2:500]
+    println("f = $f")
+    #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
+    @load "$sourcedir/$f" data
     points_img = data[1]
     faces_img = data[2]
 
     scene = Makie.mesh(points_img', faces_img', color = :gray, shading = false, visible = true)
-    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-3),(3,3,6)))
-
+    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-1),(2,2,2)))
 
 
     # global ratios, steps
@@ -36,7 +35,9 @@ for i in 5:100:50000
     # "$i",
     # position = (-2, 0,5),
     # textsize = 1)
-    save("$outdir/$(lpad(i,5,"0")).png", scene)
+
+    #display(scene)
+    save("$outdir/$f.png", scene)
 
 end
 

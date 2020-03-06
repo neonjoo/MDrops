@@ -240,10 +240,69 @@ function make_magvelocities(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
 end
 
 
+function make_magvelocities_no_Wie(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    # Returns vertex velocities from the Stokes flow integral equations without Wielandt's deflation
+    # v = Av + F
+    println("calculation velocities, no Wieldandt")
+    deltaS = make_dS(points,faces)
+
+    #fbar = mu*(mu-1)/8pi * Hfieldn.^2 + (mu-1)/8pi * Hfieldt.^2
+    fbar = mu*(mu-1)/8pi * Hn_2 + (mu-1)/8pi * Ht_2
+
+    F = zeros(3*size(vertices,2),1)
+    A = zeros(3*size(vertices,2), 3*size(vertices,2))
+
+    for y = 1:size(vertices,2)
+        ry = vertices[:,y]
+
+        for j = 1:3
+
+            for x = 1:size(vertices,2)
+                rx = vertices[:,x]
+
+                Gji = (Matrix(1.0I, (3,3)) / norm(rx-ry) +
+                (rx-ry) * (rx-ry)' / norm(rx-ry)^3)
+
+                if x != y
+                   F[3*y-3+j] +=
+                       1/(8*pi) *(
+                       dot(rx-ry,normals[:,x]) * normals[j,y]+
+                       dot(rx-ry,normals[:,y]) * normals[j,x]+
+                       (1-dot(normals[:,x],normals[:,y])) * (rx[j]-ry[j])-
+                       3*(rx[j]-ry[j])/norm(rx-ry)^2*
+                       dot(normals[:,x]+normals[:,y],rx-ry)*
+                       dot(rx-ry,normals[:,x])) * deltaS[x]/norm(rx-ry)^3
+
+                # magnetic part
+                   F[3*y-3+j] += Bm/(8*pi) *
+                   (fbar[x] - fbar[y]) *
+                   dot(Gji[j,:], normals[:,x]) * deltaS[x]
+                end
+
+                # build the A matrix
+                for i = 1:3
+                    if x != y
+                        A[3y-3+j, 3x-3+i] = (1-lambda)/8/pi * (-6 * (rx[i]-ry[i])*(rx[j]-ry[j])) / norm(rx-ry)^5 *
+                            dot(rx-ry, normals[:,x]) * deltaS[x]
+                        A[3y-3+j, 3y-3+i] += (1-lambda)/8/pi * (-6 * (rx[i]-ry[i])*(rx[j]-ry[j])) / norm(rx-ry)^5 *
+                            dot(rx-ry, normals[:,x]) * deltaS[x]
 
 
+                    end # if x!=y
+                end # i for
+            end # x for
+        end # j for
+    end # y for
+
+    varr = (A-I) \ F;  # solve integral eq. for velocity
+
+    velocities = reshape(varr ,3,size(vertices,2))
+    return velocities
+
+end # function
 
 function make_magvelocities_2(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    # early exit for lambda=1
     #without the use of levi civita tensor
     # lambda = int viscosity / ext viscosity
     # Returns vertex velocities from the Stokes flow integral equations
@@ -317,12 +376,6 @@ function make_magvelocities_2(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
         velocities = reshape(varr ,3,size(vertices,2))
         return velocities
     end
-
-
-
-
-
-
 
 
 

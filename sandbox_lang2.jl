@@ -1,66 +1,101 @@
+using Pkg
+pkg"activate ."
+pkg"resolve"
+
 using Plots
 #using Makie
 using JLD2
 using FileIO
+using Optim
+using CSV
 
 p = Plots
+p.pyplot()
 
-function eq431(e, mu)
-    # 4pi ?
-    N = 4pi*(1-e^2) / (2*e^3) * (log((1+e)/(1-e)) - 2e)
-    temp1 = (3-2e^2)/e^2 - (3-4e^2)*asin(e)/(e^3 * sqrt(1-e^2))
-    temp2 = (1-e^2)^(2/3) * ((3-e^2) * log((1+e)/(1-e))/e^5 - 6/e^4)
+include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
+SG = SurfaceGeometry
+include("./stabilization.jl")
+include("./functions.jl")
+include("./mesh_functions.jl")
+include("./physics_functions.jl")
 
-    # 4pi ?
-    return (4pi/(mu-1) + N)^2 * 1/2pi * temp1/temp2
+
+
+points_csv= CSV.read("./meshes/points_sphere.csv", header=0)
+faces_csv = CSV.read("./meshes/faces_sphere.csv", header=0)
+#fields = CSV.read("/home/laigars/sim_data/field.csv", header=0)[1] * 10 # mT -> Oe
+#times = CSV.read("/home/laigars/sim_data/time.csv", header=0)[1]
+
+#points_csv= CSV.read("./meshes/points_ellipse_manyN.csv", header=0)
+#faces_csv = CSV.read("./meshes/faces_ellipse_manyN.csv", header=0)
+println("Loaded mesh")
+
+points = convert(Array, points_csv)
+faces = convert(Array, faces_csv)
+points = Array{Float64}(points')
+faces = Array{Int64}(faces')
+
+
+H0 = [0., 0., 1.]
+mu = 30
+
+# for mu=30 hist jump @ Bm=3.69
+Bm = 3
+eta= "gatyt"
+R0 = 21.5 * 100/480 * 1e-4 # um to cm for cgs
+R0 = 1
+#lambda = 10.1
+lambda = 7.6
+gamma = H0[3]^2 * R0 / Bm
+#gamma = 8.2 * 1e-4
+#gamma = 7.7 * 1e-4 # from fitted exp data with mu=34
+
+reset_vmax = true
+last_step = 0
+t = 0
+dt = 0.1
+steps = 1
+
+#points, faces = data[1], data[2]
+normals = Normals(points, faces)
+
+
+for i in 1:steps
+    println("------------------------------------------------------------------------------------------------- Step ($i)$(i+last_step)")
+    global points, faces, connectivity, normals, all_vs, velocities, velocities2
+    global t, H0
+
+    edges = make_edges(faces)
+    connectivity = make_connectivity(edges)
+    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+
+    psi = PotentialSimple(points, faces, mu, H0; normals = normals)
+    Ht = HtField(points, faces, psi, normals)
+    Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
+    Hn = normals .* Hn_norms'
+
+    gamma = H0[3]^2 * R0 / Bm
+    println("gamma = $gamma")
+    #mup = mu
+    # magnitudes squared of the normal force
+    Hn_2 = sum(Hn.^2, dims=1)
+    # magnitudes squared of the tangential force
+    Ht_2 = sum(Ht.^2, dims=1)
+
+
+    println("Bm = $Bm")
+    # "_2" has early exit for lambda=1
+    println("velocity:")
+    @time velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    @time velocities2 = make_magvelocities_no_Wie(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+
+    #@time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
+
+
+
+
+
 end
 
-mu=3
-
-dir = "elong_sphere_zinch4"
-sourcedir = "/home/laigars/sim_data/$dir"
-len = size(readdir(sourcedir),1) - 1
-
-es = []
-Bms = []
-cs = []
-
-for i in 5:10:50000
-    # data = [points, faces, t, H0, Bm, v0max]
-
-    @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
-    #println("step $i")
-    points = data[1]
-    faces = data[2]
-    Bm = data[end-1]
-
-    function f(ab::Array{Float64,1})
-        return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
-                points[3,:].^2/ab[2]^2 .- 1).^2)
-    end
-
-    #println(f([1.,1.]))
-    x0 = [0.99, 1.01]
-    res = Optim.optimize(f,x0)
-    b = Optim.minimizer(res)[1]
-    a = Optim.minimizer(res)[2]
-    println("found $a and $b")
-    
-    c = (maximum(points[3,:]) - minimum(points[3,:]))/2
-    a = (maximum(points[1,:]) + maximum(points[1,:]))/2
-
-    e = sqrt(1-(a/c)^2)
-
-    push!(es, e)
-    push!(Bms, Bm)
-
-    c = maximum(points[3,:])
-    push!(cs, c)
-end
-
-p.scatter(es, 2pi*Bms)#, title="mu = $mu")
-#title("mu = $mu")
-p.xlabel!("e")
-p.ylabel!("Bm")
-p.plot!(es, eq431.(es, mu))
-#p.plot!(es, eq431.(es, 30))
+p.plot(velocities[1,:], label="wie")
+p.plot!(velocities2[1,:], label="no wie")

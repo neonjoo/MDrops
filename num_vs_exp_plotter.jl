@@ -97,6 +97,133 @@ push!(all_ts, ts[end])
 #p.scatter(ts .+ t_exp[34], num_es, label="parameters from fit 1", color="red",markersize=1,markerstrokecolor="red", show=true)
 
 
+dir = "elong_sphere_14"
+sourcedir = "/home/laigars/sim_data/$dir"
+len = size(readdir(sourcedir),1) - 1
+
+ba_exp = CSV.read("/home/laigars/sim_data/bas.csv", header=0)[1]
+t_exp = CSV.read("/home/laigars/sim_data/time.csv", header=0)[1]
+
+es = []
+num_es = []
+Bms = []
+num_Bms = []
+cs = []
+all_Bms = []
+all_es = []
+last_Bm = 0
+last_t = 0
+
+volumes = []
+ts = []
+all_ts = []
+for f in readdir(sourcedir)[2:end]
+    # data = [points, faces, t, H0, Bm, v0max]
+    global last_Bm, es
+    #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
+    @load "$sourcedir/$f" data
+    #println("step $i")
+    points = data[1]
+    faces = data[2]
+    Bm = data[end-1]
+    t = data[3]
+    function f(ab::Array{Float64,1})
+        return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
+                points[3,:].^2/ab[2]^2 .- 1).^2)
+    end
+
+    #println(f([1.,1.]))
+    x0 = [0.99, 1.01]
+    res = Optim.optimize(f,x0)
+    a = Optim.minimizer(res)[1]
+    b = Optim.minimizer(res)[2]
+
+    e = sqrt(1-(a/b)^2)
+    e = b/a
+
+    push!(num_es, e)
+    #push!(num_Bms, Bm)
+    push!(volumes, -SG.volume(points, faces))
+    push!(ts, t)
+    #
+    # if Bm > last_Bm
+    #     es = []
+    #     push!(all_Bms, Bm)
+    #     last_Bm = Bm
+    #     push!(all_es, es)
+    #     push!(all_ts, t)
+    # end
+    push!(es, e)
+
+end
+
+
+p.scatter(ts .+ t_exp[34], num_es, label="lower bound", color="green",markersize=1,markerstrokecolor="green", show=true)
+
+
+dir = "elong_sphere_13"
+sourcedir = "/home/laigars/sim_data/$dir"
+len = size(readdir(sourcedir),1) - 1
+
+ba_exp = CSV.read("/home/laigars/sim_data/bas.csv", header=0)[1]
+t_exp = CSV.read("/home/laigars/sim_data/time.csv", header=0)[1]
+
+es = []
+num_es = []
+Bms = []
+num_Bms = []
+cs = []
+all_Bms = []
+all_es = []
+last_Bm = 0
+last_t = 0
+
+volumes = []
+ts = []
+all_ts = []
+for f in readdir(sourcedir)[2:end]
+    # data = [points, faces, t, H0, Bm, v0max]
+    global last_Bm, es
+    #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
+    @load "$sourcedir/$f" data
+    #println("step $i")
+    points = data[1]
+    faces = data[2]
+    Bm = data[end-1]
+    t = data[3]
+    function f(ab::Array{Float64,1})
+        return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
+                points[3,:].^2/ab[2]^2 .- 1).^2)
+    end
+
+    #println(f([1.,1.]))
+    x0 = [0.99, 1.01]
+    res = Optim.optimize(f,x0)
+    a = Optim.minimizer(res)[1]
+    b = Optim.minimizer(res)[2]
+
+    e = sqrt(1-(a/b)^2)
+    e = b/a
+
+    push!(num_es, e)
+    #push!(num_Bms, Bm)
+    push!(volumes, -SG.volume(points, faces))
+    push!(ts, t)
+    #
+    # if Bm > last_Bm
+    #     es = []
+    #     push!(all_Bms, Bm)
+    #     last_Bm = Bm
+    #     push!(all_es, es)
+    #     push!(all_ts, t)
+    # end
+    push!(es, e)
+
+end
+
+
+
+
 
 push!(all_ts, ts[end])
 # finals = []
@@ -124,24 +251,21 @@ p.plot!(t_exp, ba_exp, label="experimental", color="black", linewidth=2, framest
 #p.scatter!(num_es_few, num_Bms_few, label="all_few", color="orange")
 #p.scatter!(finals_few, all_Bms_few, label="shanked_few", color="red")#, title="mu = $mu")
 #title("mu = $mu")
-p.xlabel!("t, s")
+p.xlabel!("t")
 p.ylabel!("b/a")
 p.xlims!(0,140)
 p.ylims!(1,3)
-
-
-p.plot!([5,5], [1,2.8],color="black", linestyle=:dash, label="", legend=:topleft)
-p.annotate!(13, 1.17, text("0.117 mT", 8))
-
 p.plot!([25,25], [1,2.8],color="black", linestyle=:dash, label="", legend=:topleft)
-p.annotate!(33, 1.8, text("0.187 mT", 8))
+p.annotate!(14, 1.17, text("1.178 Oe", 8))
 
-p.plot!([55,55], [1,3],color="black", linestyle=:dash, label="")
-p.annotate!(63, 2.34, text("0.234 mT", 8))
+p.plot!([55,55], [1,2.8],color="black", linestyle=:dash, label="")
+p.annotate!(45, 1.87, text("1.872 Oe", 8))
 
-p.plot!([84, 84], [1,3],color="black", linestyle=:dash, label="")
-p.annotate!(76, 2.75, text("0.281 mT", 8))
-println("saving.. ")
+p.plot!([84, 84], [1,2.8],color="black", linestyle=:dash, label="")
+p.annotate!(74, 2.3, text("2.344 Oe", 8))
+
+#e = 0:0.002:finals[end]+0.01p
+p.savefig("num_vs_exp.pdf")
 
 e=0.01:0.001:0.90
 

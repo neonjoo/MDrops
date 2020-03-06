@@ -253,7 +253,7 @@ end
 
 function make_normals_spline(points, connectivity, edges, normals0;
                     Cs=1.0, eps_inner=1e-5, eps_outer=1e-4,
-                    max_iters_inner=1000, max_iters_outer=100)
+                    max_iters_inner=1000, max_iters_outer=10)
     #returns improved normals and CDE - parameters of locally fitted paraboloid
     #z = C*x^2+D*x*y+E*y^2
     #Cs is a coupling parameter. Zinchencko(2000) sets it to 1
@@ -416,13 +416,14 @@ function make_normals_spline(points, connectivity, edges, normals0;
         #println("outer iters:")
         #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
 
-        println("spline outer iter $m ,cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+        print("spline outer iter $m ,cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
-            println("paraboloid fit converged")
+            #println("paraboloid fit converged")
             break
         end
     end
+    println()
     return normals, CDE
 end
 
@@ -531,7 +532,6 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
         LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
         K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
         hsq = K * LAMBDA.^(-gamma)
-
         if iter < checkiters
             xij = make_edge_lens(points,edges)
             hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
@@ -561,7 +561,7 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
         # e = make_E(points, faces, hsq,p=p, r=r)
         # println("E = $e")
 
-        if iter%100 == 0
+        if iter%500 == 0
             println("iteration ",iter)
 
         end
@@ -670,11 +670,13 @@ function flip_edges(faces, connectivity, vertices)
     maxx = size(vertices, 2)
     global continue_flip = true
     global flipped_any = false
-
-    while continue_flip
+    max_flips = 10
+    flips_tried = 0
+    while continue_flip & (flips_tried < max_flips)
         global continue_flip
         continue_flip = false
-        #println("started flip loop")
+        flips_tried += 1
+
 
         for i in 1:maxx
             # num of i-th vertex neighbors
@@ -817,7 +819,6 @@ end
 
 
 function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
-
 # [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
 # LAMBDA = k1.^2 + k2.^2 + 0.004
 # K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
@@ -864,8 +865,6 @@ function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
 
         Fp = F
         F = make_F(triangles, vertices, V)
-        #println(F)
-        #println((Fp-F)/F)
 
         if (Fp - F)/F < epsilon
             println("improved tangential velocities")
@@ -879,222 +878,14 @@ function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
     return V
 end
 
-# function make_F(triangles, vertices, V, hsq)
-#
-#     Ntriangles = size(triangles, 2)
-#
-#     F = 0
-#
-#     for i = 1:Ntriangles
-#         x = [vertices[:,triangles[1,i]],
-#              vertices[:,triangles[2,i]],
-#              vertices[:,triangles[3,i]]]
-#
-#         v = [V[:,triangles[1,i]],
-#              V[:,triangles[2,i]],
-#              V[:,triangles[3,i]]]
-#
-#         this_hsq = [hsq[triangles[1,i]],
-#                     hsq[triangles[2,i]],
-#                     hsq[triangles[3,i]]]
-#
-#         a = norm(x[2] - x[1])
-#         b = norm(x[3] - x[2])
-#         c = norm(x[1] - x[3])
-#         # println("$i: $a $b $c")
-#         # try
-#         #     global Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
-#         # catch
-#         #     println("sadness")
-#         #     global Cdelta = 0
-#         # end
-#
-#         Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
-#
-#         A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#             (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#         B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#             (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#         C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#             (4*Cdelta * (a^2 + b^2 + c^2)^3);
-#
-#         dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-#                     -B * dot(x[3] - x[2], v[3] - v[2]) +
-#                     -C * dot(x[1] - x[3], v[1] - v[3])
-#
-#
-#         # F = F + ...
-#         #     0.4 / Cdelta^2 * dCdeltadt^2 + ...
-#         #     2*( dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4) )^2 + ...
-#         #     2*( dot(x[3,:] - x[2,:], v[3,:] - v[2,:]) * (1/(0.5*(this_hsq[3] + this_hsq[2])) - 0.5*(this_hsq[3] + this_hsq[2]) / b^4) )^2 + ...
-#         #     2*( dot(x[1,:] - x[3,:], v[1,:] - v[3,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4) )^2
-#
-#         F = F + 0.4 / Cdelta^2 * dCdeltadt^2 +
-#             2*( dot(x[2] - x[1], v[2] - v[1]))^2 * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4) )^2 +
-#             2*( dot(x[3] - x[2], v[3] - v[2]))^2 * (1/(0.5*(this_hsq[3] + this_hsq[2])) - 0.5*(this_hsq[3] + this_hsq[2]) / b^4) )^2 +
-#             2*( dot(x[1] - x[3], v[1] - v[3]))^2 * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4) )^2
-#
-#     end
-#
-#     return F
-# end
-#
-#
-#
-# function make_tanggradF(normals,triangles, vertices, V)
-#
-#     # normals = normals'
-#     # triangles = triangles'
-#     # vertices = vertices'
-#     # V = V'
-#
-#     Nvertices = size(vertices, 2)
-#     gradF = zeros(3,Nvertices)
-#
-#     for i = 1:Nvertices
-#
-#         # finds the i-th triangle indices in the triangle 2D array
-#         mask = findall(x-> x == i, faces)
-#         num = length(mask)
-#         (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
-#         for n in 1:num
-#             row[n], col[n] = mask[n][1], mask[n][2]
-#         end
-#
-#
-#         for this_triang = 1:length(row)
-#             j1 = (row[this_triang])%(3) + 1 # from 1 to 3
-#             j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
-#
-#
-#             # radiusvektori uz sho trijsturu virsotneem
-#             # pirmais atbilst i
-#
-#             x = [vertices[:,triangles[row[this_triang],col[this_triang]]],
-#                 vertices[:,triangles[j1, col[this_triang]]],
-#                 vertices[:,triangles[j2, col[this_triang]]]]
-#
-#             v = [V[:, triangles[row[this_triang],col[this_triang]]],
-#                 V[:, triangles[j1, col[this_triang]]],
-#                 V[:, triangles[j2, col[this_triang]]]]
-#
-#             # this_hsq = [hsq[triangles[row[this_triang],col[this_triang]]]
-#             #     hsq[triangles[row[this_triang],j1]]
-#             #     hsq[triangles[row[this_triang],j2]]]
-#
-#             a = norm(x[2] - x[1])
-#             b = norm(x[3] - x[2])
-#             c = norm(x[1] - x[3])
-#
-#             Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
-#
-#             A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#                 (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#             B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#                 (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#             C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#                 (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#
-#             dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-#                         -B * dot(x[3] - x[2], v[3] - v[2]) +
-#                         -C * dot(x[1] - x[3], v[1] - v[3])
-#
-#             # gradF[i,:] = gradF[i,:] + ...
-#             #             0.4 / Cdelta^2 * 2 * dCdeltadt*( A*(x[2,:] - x[1,:]) + C*(x[3,:] - x[1,:])) + ...
-#             #             -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4)^2 *(x[2,:] - x[1,:]) + ...
-#             #             -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4)^2 *(x[3,:] - x[1,:])
-#
-#             t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x[2,:] - x[1,:]) .+ C*(x[3,:] - x[1,:]))
-#             t2 = -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (x[2,:] - x[1,:])
-#             t3 = -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (x[3,:] - x[1,:])
-#
-#             gradF[:,i] = gradF[:,i] + t1[1] + t2[1] + t3[1]
-#         end
-#
-#         tang_proj = I - normals[:,i] * normals[:,i]'
-#         gradF[:,i] = tang_proj * gradF[:,i]
-#
-#     end
-#
-#     return gradF
-#
-# end
-#
-#
-#
-# function make_gradF(normals,triangles, vertices, V)
-#
-#         # normals = normals'
-#         # triangles = triangles'
-#         # vertices = vertices'
-#         # V = V'
-#
-#         Nvertices = size(vertices, 2)
-#         gradF = zeros(3,Nvertices)
-#
-#         for i = 1:Nvertices
-#
-#             # finds the i-th triangle indices in the triangle 2D array
-#             mask = findall(x-> x == i, faces)
-#             num = length(mask)
-#             (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
-#             for n in 1:num
-#                 row[n], col[n] = mask[n][1], mask[n][2]
-#             end
-#
-#
-#             for this_triang = 1:length(row)
-#                 j1 = (row[this_triang])%(3) + 1 # from 1 to 3
-#                 j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
-#
-#
-#                 # radiusvektori uz sho trijsturu virsotneem
-#                 # pirmais atbilst i
-#
-#                 x = [vertices[:,triangles[row[this_triang],col[this_triang]]],
-#                     vertices[:,triangles[j1, col[this_triang]]],
-#                     vertices[:,triangles[j2, col[this_triang]]]]
-#
-#                 v = [V[:, triangles[row[this_triang],col[this_triang]]],
-#                     V[:, triangles[j1, col[this_triang]]],
-#                     V[:, triangles[j2, col[this_triang]]]]
-#
-#                 # this_hsq = [hsq[triangles[row[this_triang],col[this_triang]]]
-#                 #     hsq[triangles[row[this_triang],j1]]
-#                 #     hsq[triangles[row[this_triang],j2]]]
-#
-#                 a = norm(x[2] - x[1])
-#                 b = norm(x[3] - x[2])
-#                 c = norm(x[1] - x[3])
-#
-#                 Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
-#
-#                 A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#                     (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#                 B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#                     (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#                 C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-#                     (4*Cdelta * (a^2 + b^2 + c^2)^3)
-#
-#                 dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-#                             -B * dot(x[3] - x[2], v[3] - v[2]) +
-#                             -C * dot(x[1] - x[3], v[1] - v[3])
-#
-#                 # gradF[i,:] = gradF[i,:] + ...
-#                 #             0.4 / Cdelta^2 * 2 * dCdeltadt*( A*(x[2,:] - x[1,:]) + C*(x[3,:] - x[1,:])) + ...
-#                 #             -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4)^2 *(x[2,:] - x[1,:]) + ...
-#                 #             -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4)^2 *(x[3,:] - x[1,:])
-#
-#                 t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x[2,:] - x[1,:]) .+ C*(x[3,:] - x[1,:]))
-#                 t2 = -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (x[2,:] - x[1,:])
-#                 t3 = -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (x[3,:] - x[1,:])
-#
-#                 gradF[:,i] = gradF[:,i] + t1[1] + t2[1] + t3[1]
-#
-#             end
-#
-#         end
-#
-#         return gradF
-#
-#     end
+function make_enright_velocities(points, t)
+    x, y, z = points[1, :], points[2, :], points[3, :]
+
+    vx = 2*sin.(pi*x).^2 .* sin.(2pi*y) .* sin.(2pi*z) .* sin(2/3*pi*t)
+    vy = -sin.(2pi*x) .* sin.(pi*y).^2 .* sin.(2pi*z) .* sin(2/3*pi*t)
+    vz = -sin.(2pi*x) .* sin.(2pi*y) .* sin.(pi*z).^2 .* sin(2/3*pi*t)
+
+    v = [vx vy vz]
+
+    return Array{Float64}(transpose(v))
+end
