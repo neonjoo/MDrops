@@ -103,8 +103,12 @@ function make_pc(CDE::Array{Float64,2})
     D = CDE[2,:]
     E = CDE[3,:]
 
-    k1 = -C - E + sqrt.(C.^2 + D.^2 - 2*C.*E + E.^2)
-    k2 = -C - E - sqrt.(C.^2 + D.^2 - 2*C.*E + E.^2)
+    k1 = -C - E + sqrt.((C-E).^2 + D.^2)
+    k2 = -C - E - sqrt.((C-E).^2 + D.^2)
+
+    # the below formulas gave errors small negative numbers under sqrt
+    #k1 = -C - E + sqrt.(C.^2 + D.^2 - 2*C.*E + E.^2)
+    #k2 = -C - E - sqrt.(C.^2 + D.^2 - 2*C.*E + E.^2)
 
     return k1,k2
 end
