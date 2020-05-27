@@ -472,3 +472,93 @@ function make_magvelocities_2(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
     velocities = reshape(varr ,3,size(vertices,2))
     return velocities
 end
+
+
+function scalar_magnetic_potential(r::Array{Float64}, M::Float64, angle::Float64,  xlims::Array{Float64}, ylims::Array{Float64}, zlims::Array{Float64})
+    # Scalar magnetic potential of a block magnet, bounded by lims (according to https://contattafiles.s3.us-west-1.amazonaws.com/tnt41611/uDDJpl0uRpMsYLf/Ravaud_Lemarquand_2009_Magnetic%20field%20produced%20by%20a%20parallelepipedic%20magnet%20of%20various%20and%20uniform.pdf)
+    # M - magnetization, angle wrt to X axis in XY plane
+
+    function dist(i::Int64, j::Int64, k::Int64, r::Array{Float64}, xlims::Array{Float64}, ylims::Array{Float64}, zlims::Array{Float64})
+        # distance function wrt to given faces of the block magnet
+        x, y, z = r
+        xi, yj, zk = xlims[i], ylims[j], zlims[k]
+
+        return sqrt((x-xi)^2 + (y-yj)^2 + (z-zk)^2)
+    end
+
+    function phi_1(i::Int64, j::Int64, k::Int64, r::Array{Float64}, xlims::Array{Float64}, ylims::Array{Float64}, zlims::Array{Float64})
+        # helper function, see ref above
+        x, y, z = r
+        xi, yj, zk = xlims[i], ylims[j], zlims[k]
+        d = dist(i, j, k, r, xlims, ylims, zlims)
+
+        return zk + (x-xi)*atan((z-zk)/(x-xi)) + (y-yj)*log(z-zk+d) -
+                    (x-xi)*atan( (y-yj)*(z-zk) / ((x-xi)*d) ) + (z-zk)*log(y-yj+d)
+    end
+
+    function phi_2(i::Int64, j::Int64, k::Int64, r::Array{Float64}, xlims::Array{Float64}, ylims::Array{Float64}, zlims::Array{Float64})
+        # helper function, see ref above
+        x, y, z = r
+        xi, yj, zk = xlims[i], ylims[j], zlims[k]
+        d = dist(i, j, k, r, xlims, ylims, zlims)
+
+        return zk + (y-yj)*atan((z-zk)/(y-yj)) + (x-xi)*log(z-zk+d) -
+                    (y-yj)*atan( (x-xi)*(z-zk) / ((y-yj)*d) ) + (z-zk)*log(x-xi+d)
+    end
+
+    pot = 0
+    for i in 1:2
+        for j in 1:2
+            for k in 1:2
+                pot = pot + (-1)^(i+j+k) * ( cos(angle)*phi_1(i, j, k, r, xlims, ylims, zlims) + sin(angle)*phi_2(i, j, k, r, xlims, ylims, zlims) )
+
+            end
+        end
+    end
+
+    return pot*M/4pi/(4pi*10^-7)
+
+end
+
+function quadropole_potential(point::Array{Float64})
+    x, y, z = point
+    M = 1.0
+    z_lim = 1.75
+    return scalar_magnetic_potential([x, y, z], M, 1pi, [-1.0, -0.5], [0., 0.5], [-z_lim/2, z_lim/2]) +
+                 scalar_magnetic_potential([x, y, z], M, 0., [-1.0, -0.5], [-0.5, 0.], [-z_lim/2, z_lim/2]) +
+                 scalar_magnetic_potential([x, y, z], M, 1pi, [0.5, 1.], [0., 0.5], [-z_lim/2, z_lim/2]) +
+                 scalar_magnetic_potential([x, y, z], M, 0., [0.5, 1.], [-0.5, 0.], [-z_lim/2, z_lim/2])
+end
+
+# ff = []
+# yy = -4.0:0.05:4.0
+# for i in yy
+#     push!(ff, scalar_magnetic_potential2([0., i, 0.], 2.0, pi/2, [-0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5]))
+# end
+#
+# p.plot(yy[1:end-1], -diff(ff))
+#
+# x = -0.5:0.02:1.0
+# y = -0.5:0.02:1.0
+# f(x, y) = begin
+#         scalar_magnetic_potential2([x, y, 0.], 20.0, pi/2, [-0.5, 0.], [0.5, 1.], [-1., 1.]) +
+#             scalar_magnetic_potential2([x, y, 0.], 20.0, -pi/2, [0., 0.5], [0.5, 1.], [-1., 1.]) +
+#             scalar_magnetic_potential2([x, y, 0.], 20.0, pi/2, [-0.5, 0.], [-1., -0.5], [-1., 1.]) +
+#             scalar_magnetic_potential2([x, y, 0.], 20.0, -pi/2, [0., 0.5], [-1., -0.5], [-1., 1.])
+# end
+#
+#
+# ff = []
+# yy = -2.0:0.05:2.0
+# for i in yy
+#     push!(ff, f(i, 0.))
+# end
+#
+# p.plot(yy[1:end-1], -diff(ff))
+#
+# X = repeat(reshape(x, 1, :), length(y), 1)
+# Y = repeat(y, 1, length(x))
+# Z = map(quadropole_potential, X, Y)
+# p1 = p.contour(x, y, f, levels=40, fill=true)
+# p2 = p.contour(x, y, Z, levels=100, fill=true)
+# p.plot(p1, p2)

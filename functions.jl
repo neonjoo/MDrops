@@ -77,7 +77,6 @@ function PotentialSimple(points,faces,hmag,H0;regularize=true,normals=nothing)
         NormalVectors!(normals,points,faces,i->FaceVRing(i,faces))
     end
 
-
     A = zeros(Float64,size(points,2),size(points,2))
 
     vareas = zeros(Float64,size(points,2))
@@ -123,6 +122,57 @@ function PotentialSimple(points,faces,hmag,H0;regularize=true,normals=nothing)
     return psi
 end
 
+function PotentialAny(points,faces,hmag,H0;regularize=true,normals=nothing)
+
+    if normals==nothing
+        normals = Array{Float64}(undef,size(points)...)
+        NormalVectors!(normals,points,faces,i->FaceVRing(i,faces))
+    end
+
+    A = zeros(Float64,size(points,2),size(points,2))
+
+    vareas = zeros(Float64,size(points,2))
+    for i in 1:size(faces,2)
+        v1,v2,v3 = faces[:,i]
+        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1]))/2
+        vareas[v1] += area/3
+        vareas[v2] += area/3
+        vareas[v3] += area/3
+    end
+
+    for xkey in 1:size(points,2)
+
+        x = points[:,xkey]
+        nx = normals[:,xkey]
+
+        for ykey in 1:size(points,2)
+            if xkey==ykey
+                continue
+            end
+            y = points[:,ykey]
+            ny = normals[:,ykey]
+
+            A[ykey,xkey] = dot(y-x,ny)/norm(y-x)^3 * vareas[ykey]
+        end
+    end
+
+    B = zeros(Float64,size(points,2))
+    for xkey in 1:size(points,2)
+        B[xkey] = 2*quadropole_potential(points[:,xkey])/(hmag+1)
+    end
+
+    if regularize==true
+        A = A'
+        reg_A = A - Diagonal(Float64[sum(A[i,:]) for i in 1:size(A,2)])
+        psi = (I * (1- (hmag-1)/(hmag+1)) - 1/2/pi * (hmag-1)/(hmag+1) * reg_A) \ B
+    else
+        A = A*(hmag-1)/(hmag+1)/2/pi
+        A = A'
+        psi = (I - A)\B
+    end
+
+    return psi
+end
 
 function HField(points,faces,psi)
 

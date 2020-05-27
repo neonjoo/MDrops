@@ -5,7 +5,7 @@ pkg"resolve"
 using LinearAlgebra
 #using CSV
 using JLD2
-#using Makie
+using Makie
 using StatsBase
 using Optim
 #using ElTopo
@@ -31,18 +31,20 @@ include("./physics_functions.jl")
 
 # points = convert(Array, points_csv)
 # faces = convert(Array, faces_csv)
-points, faces = expand_icosamesh(R=1, depth=2)
+#points, faces = expand_icosamesh(R=1, depth=2)
 
-#@load "./meshes/faces_critical_hyst_2_21.jld2" faces
-points = Array{Float64}(points)
+@load "./meshes/cylinder_faces.jld2" faces
+@load "./meshes/cylinder_points.jld2" points
+
+points = Array{Float64}(points / (maximum(points[1,:]) - minimum(points[1,:]) + 0.001)) # rescale channel width to 1
 faces = Array{Int64}(faces)
 #points = points
 
 println("Loaded mesh; nodes = $(size(points,2))")
 
-continue_sim = true
+continue_sim = false
 
-dataname = "hysteresis_1_return3_1"
+dataname = "cylinder_1"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -52,18 +54,18 @@ mu = 30
 Bm = 20 ################################################ zemāk iespējams loado citu
 #R0 = 21.5 * 100/480 * 1e-4 # um to cm for cgs
 R0 = 1
-lambda = 7.6
+lambda = 1
 gamma = H0[3]^2 * R0 / Bm
 #gamma = 8.2 * 1e-4
 #gamma = 7.7 * 1e-4 # from fitted exp data with mu=34
-w = 0
+w = 100
 
 reset_vmax = true
 last_step = 0
 t = 0
-dt = 0.1
-steps = 10000
-epsilon = 0.05
+dt = 0.0001
+steps = 100
+epsilon = 0.03
 normals = Normals(points, faces)
 
 max_vs = zeros(3, steps)
@@ -79,7 +81,7 @@ if continue_sim
     @load "$datadir/$last_file" data
 
     global points, faces, t, H0, Bm, v0max = data[1], data[2], data[3], data[4], data[5], data[6]
-    Bm = 3.2
+    #Bm = 10
     global last_step = parse(Int32, last_file[5:9])
     println("last step: $last_step")
     normals = Normals(points, faces)
@@ -105,7 +107,7 @@ for i in 1:steps
     connectivity = make_connectivity(edges)
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
-    psi = PotentialSimple(points, faces, mu, H0; normals = normals)
+    psi = PotentialAny(points, faces, mu, H0; normals = normals)
     Ht = HtField(points, faces, psi, normals)
     Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
     Hn = normals .* Hn_norms'
@@ -125,14 +127,14 @@ for i in 1:steps
 
     println("Bm = $Bm")
 
-    @time velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
+    @time velocities = make_magvelocities_2(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 50)
 
     #@time velocities = make_enright_velocities(points, t)
     #passive stabilization
     #velocities = SG.stabilise!(velocities, points, faces, normals, zc)
 
-    #dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
      #if dt < 0.2
     #     dt = 0.2
     # end
@@ -141,13 +143,13 @@ for i in 1:steps
     println("---- t = $t, dt = $dt ------")
 
     points = points + velocities * dt
-    #H0 = [sin(w*t), 0., cos(w*t)]
+    H0 = [sin(w*t), 0., cos(w*t)]
     do_active = false
 
     faces, connectivity, do_active = flip_edges(faces, connectivity, points)
 
 
-    if i % 20 == 0 || do_active
+    if i > 2 || do_active
         if do_active
             #println("-------------------------------------------------- flipped at step $i")
             edges = make_edges(faces)
@@ -205,7 +207,7 @@ for i in 1:steps
         global reset_vmax
         reset_vmax = true
         global Bm
-        Bm -= 0.2
+        #Bm -= 0.5
         println("----- new Bm = $Bm")
         #break
    end
@@ -216,9 +218,9 @@ data = [max_vs, mean_vs, points, faces]
 
 println("Sim done :)")
 
-scene = Makie.mesh(points', faces', color = :gray, shading = false, visible = true)
+scene = Makie.mesh(points2'/8, faces4', color = :gray, shading = true, visible = true)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 2)
-
+Makie.scatter!([points[1,18]], [points[2,18]], [points[3,18]], markersize=0.1, color=:red)
 
 # scene = Makie.mesh(points2_small', faces1',color = :gray, shading = false, visible = true)
 # Makie.wireframe!(scene[end][1], color = :blue, linewidth = 2,visible = true)
@@ -236,8 +238,8 @@ ax = fig[:gca](projection="3d")
 (x, y, z) = [points[i,:] for i in 1:3]
 (vx, vy, vz) = [velocities[i,:] for i in 1:3]
 
-ax[:scatter](x,y,z, s=2,color="k")
-ax[:quiver](x,y,z,vx,vy,vz, length=30, arrow_length_ratio=0.5)
+ax[:scatter](x,y,z, s=4,color="k")
+ax[:quiver](x,y,z,vx,vy,vz, length=1, arrow_length_ratio=0.5)
 
 ax[:set_xlim](-2,2)
 ax[:set_ylim](-2,2)

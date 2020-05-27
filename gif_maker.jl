@@ -1,9 +1,9 @@
 using Makie
 using JLD2
 using FileIO
+using StatsBase
 
-
-dir = "rotating_fast_11"
+dir = "hysteresis_1_return3"
 sourcedir = "/home/laigars/sim_data/$dir"
 outdir="/home/laigars/sim_data/pics/$dir"
 len = size(readdir(sourcedir),1) - 1
@@ -15,15 +15,20 @@ end
 
 ratios = []
 steps = []
-for f in readdir(sourcedir)[2:2:500]
+for f in readdir(sourcedir)[2:10:end-1]
     println("f = $f")
     #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
     @load "$sourcedir/$f" data
-    points_img = data[1]
-    faces_img = data[2]
+    points = data[1]
+    faces = data[2]
 
-    scene = Makie.mesh(points_img', faces_img', color = :gray, shading = false, visible = true)
-    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-1),(2,2,2)))
+    mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
+                    StatsBase.mean(points[2,:]),
+                    StatsBase.mean(points[3,:]))
+
+    points = points .- [mean_x, mean_y, mean_z]
+    scene = Makie.mesh(points', faces', color = :gray, shading = false, visible = true)
+    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-4),(2,2,8)))
 
 
     # global ratios, steps

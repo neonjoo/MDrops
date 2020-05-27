@@ -262,7 +262,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
 
     # takes almost 1minute to enter this function from main_lan.jl call
 
-    println("fitting local paraboloids")
+    println("fitting local paraboloids, outer costs: ")
 
     CDE = zeros(Float64, size(points)) # 3xN array
     gradPhi = [0.,0.,0.]
@@ -354,12 +354,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
                      ))
                 ]
 
-                # M * CDE  + b = 0;  M*CDE = -b
-                #println(b)
-                #readline(stdin)
-
                 CDE[:,i] = M\(-b)
-
 
                 # get gradPi
                 gradPhi[1] = sum(filter(x -> !isnan(x),
@@ -385,7 +380,6 @@ function make_normals_spline(points, connectivity, edges, normals0;
                gradPhi[1] += 2*Cs*sum(filter(x -> !isnan(x), sum(ev[1,:] .* edge_normal_sum[1,:]) ./ sum(ev[1,:] .* ev[1,:]) .* ev[1,:] ))
                gradPhi[2] += 2*Cs*sum(filter(x -> !isnan(x), sum(ev[2,:] .* edge_normal_sum[2,:]) ./ sum(ev[2,:] .* ev[2,:]) .* ev[2,:] ))
                gradPhi[3] += 2*Cs*sum(filter(x -> !isnan(x), sum(ev[3,:] .* edge_normal_sum[3,:]) ./ sum(ev[3,:] .* ev[3,:]) .* ev[3,:] ))
-
 
                #gradPhi = gradPhi + ...
                #  2*Cs*sum( bsxfun(@times, sum(ev .* edge_normal_sum,2) ./ sum(ev .* ev,2) , ev), 1);
@@ -416,7 +410,7 @@ function make_normals_spline(points, connectivity, edges, normals0;
         #println("outer iters:")
         #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
 
-        print("spline outer iter $m ,cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+        print(" iter $m cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
             #println("paraboloid fit converged")

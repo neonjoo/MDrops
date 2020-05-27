@@ -6,7 +6,7 @@ using LinearAlgebra
 using StatsBase
 
 #sourcedir = "/home/andris/sim_data/$dir"
-sourcedir = "/home/laigars/sim_data/rotating_2.3"
+sourcedir = "/home/laigars/sim_data/rotating_fast_12"
 
 len = size(readdir(sourcedir),1) - 2
 
@@ -17,8 +17,9 @@ ts = zeros(Float64, len)
 abcs = zeros(3, len)
 eigvecs_z = zeros(3, len)
 angles_z = zeros(1, len)
+final = 4000
 
-for i in 1:50:len
+for i in 1:1:final
     global ts, points, faces
     @load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
     #@load "./meshes/faces_critical_hyst_2_21.jld2" faces
@@ -27,15 +28,16 @@ for i in 1:50:len
     points = data[1]
     faces = data[2]
     t = data[3]
-    print("$i ")
-    #mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
-    #                StatsBase.mean(points[2,:]),
-    #                StatsBase.mean(points[3,:]))
+    ts[i] = t
+    #print("$i ")
+    mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
+                    StatsBase.mean(points[2,:]),
+                    StatsBase.mean(points[3,:]))
 
-    #points = points .- [mean_x, mean_y, mean_z]
+    points = points .- [mean_x, mean_y, mean_z]
 
     function f(coefs::Array{Float64,1})
-        # coefs - alphas and betas for athe ellipsoid equation
+        # coefs - alphas and betas for the ellipsoid equation
         a1, a2, a3, b1, b2, b3 = coefs
         x,  y, z = points[1,:], points[2,:], points[3,:]
         eq = a1*x.^2 + a2*y.^2 + a3*z.^2 + 2*b1*y.*z + 2*b2*x.*z + 2*b3*y.*z .- 1
@@ -50,16 +52,21 @@ for i in 1:50:len
     #println("koefs: ", Optim.minimizer(res))
     #println()
     #println("vecs: ", transpose(eigvecs(M)))
-    if i == 87
-        println()
-        scene = Makie.mesh(points', faces',color = :gray, shading = false, visible = true)
-        Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)
-    end
+
 
     eigs = eigvals(M)
     vecs = eigvecs(M)
     eigvecs_z[:, i] = vecs[:, 1]
     angles_z[i] = acos(dot(vecs[:,1], [0., 0., 1.])) / pi * 180
+
+    # try
+    #     if abs(angles_z[i] - angles_z[i-1]) > 30
+    #         #println(i)
+    #         angles_z[i] = 180 - angles_z[i]
+    #     end
+    # catch
+    #     #pass
+    # end
     # according to
     # https://math.stackexchange.com/questions/944336/equation-of-major-axis-of-an-ellipsoid
     abcs[:, i] = sqrt.(1 ./ abs.(eigs))
@@ -67,13 +74,21 @@ for i in 1:50:len
 end
 
 #
-i = 301
-@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
-points = data[1]
-faces = data[2]
+i = 600
+#@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
+#points = data[1]
+#faces = data[2]
 
 scene = Makie.mesh(points', faces',color = :gray, shading = false, visible = true)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)#, limits=FRect3D((-5,-5,-5),(10,10,10)))
 println(abcs[:, i])
 
-p.plot(angles_z')
+p.plot(abcs[:,1:final]')
+
+
+final = 3300
+p.plot(ts[1:final+200], abcs[:,1:final+200]', linestyle=:solid, color=:black, lw=2, label="") # rotating fast 12
+
+p.xlabel!("t, s")
+p.ylabel!("Axis length of fitted ellipsoid")
+p.eps("oblate-prolate.eps")

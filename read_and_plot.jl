@@ -8,12 +8,12 @@ using JLD2
 using StatsBase
 using Optim
 
-datadir="/home/laigars/sim_data/rotating_fast_12/"
+datadir="/home/laigars/sim_data/hysteresis_1_return3_1/"
 #datadir2="/home/andris/sim_data/2019-03-15/1
 
 #file_no = 1180
 #last_file = readdir(datadir)[file_no]
-last_file = readdir(datadir)[end-15000]
+last_file = readdir(datadir)[end-3]
 #last_file = "data00114.jld2"
 println()
 println(last_file)
