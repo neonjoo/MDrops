@@ -125,6 +125,16 @@ function make_dS(points,faces)
     return dS
 end
 
+function make_S(points,faces)
+    S = 0
+    for i in 1:size(faces,2)
+        v1,v2,v3 = faces[:,i]
+        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1]))/2
+        S += area
+    end
+    return S
+end
+
 function make_pc_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
     # returns principal curvatures k1, k2 at the point ( x , y , z(x,y) )
     # on a locally fitted paraboloid z = Cx^2 + Dxy + Ey^2
