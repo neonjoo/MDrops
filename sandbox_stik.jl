@@ -74,9 +74,9 @@ faces = convert(Array, faces_csv)
 points = Array{Float64}(points')
 faces = Array{Int64}(faces')
 
-points, faces = expand_icosamesh(R=1, depth=2)
-points = Array{Float64}(points)
-faces = Array{Int64}(faces)
+#points, faces = expand_icosamesh(R=1, depth=2)
+#points = Array{Float64}(points)
+#faces = Array{Int64}(faces)
 
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
@@ -751,29 +751,278 @@ function gauss_nonsingular(f::Function, r1,r2,r3,gaussorder)
     return intval
 end
 
-g = 7
-order = 1
-println(gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],g))
-print((gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],g)
-- gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],10))
-/ gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],10)*100)
-println(" %")
-println()
-r1 = [0.,0.,0.]
-r2 = [0.,0.,1.]
-r3 = [0., 1., 0.]
-println((trapezoid_nonsingular(dot(r1,r1),dot(r2,r2),dot(r3,r3),r1,r2,r3) - gauss_nonsingular(x->dot(x,x), r1,r2,r3,10)) / gauss_nonsingular(x->dot(x,x), r1,r2,r3,10) *100 )
+function fastsolidbody_project(points, faces, w)
+    # projects the surfaces velocity w
+    # on the rotation and translations of a solid body
+    # w = 0 0 0 0 0 1 0 0 , the position of 1 is encoded by oneind
+    oneind = findfirst(x->x==1,w)[1]
+
+    function make_w(x,x1,x2,x3,w1,w2,w3) # vector linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [w1 w2 w3] # matrix of vertex the vectorfunction
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        return B * zeta_xi_eta
+    end
+
+    S = 0
+    yc = [0.,0.,0.]
+    V = [0.,0.,0.]
+    Omega = [0.,0.,0.]
+    M = zeros(3,3)
+
+    for i = 1:size(faces,2) # triangle number
+
+        x1 = points[:,faces[1,i]]
+        x2 = points[:,faces[2,i]]
+        x3 = points[:,faces[3,i]]
+
+        deltaS = norm(cross(x2-x1,x3-x1))/2
+
+        if oneind in faces[:,i]
+            w1 = w[:,faces[1,i]]
+            w2 = w[:,faces[2,i]]
+            w3 = w[:,faces[3,i]]
+            # trapezoid rule because linear functions
+            V += (w1+w2+w3)/3 * deltaS
+        end
 
 
-function trapezoid_nonsingular(f1,f2,f3,r1,r2,r3)
-    #f - function of r
-    deltaS = norm(cross(r2-r1,r3-r1))/2
-    return (f1+f2+f3)/3 * deltaS
+        S += deltaS
+        # trapezoid rule because linear functions
+        yc += (x1+x2+x3)/3 * deltaS
+    end
+
+    yc /= S
+    V /= S
+
+    function x_tilde_cross_w(x,yc,w1,w2,w3,x1,x2,x3)
+        intw = make_w(x,x1,x2,x3,w1,w2,w3)
+        intxtilde = x - yc
+
+        return cross(intxtilde,intw)
+    end
+
+    function Mfun(x,yc)
+        intxtilde = x - yc
+        return dot(intxtilde,intxtilde) * Matrix(1.0I,3,3) - intxtilde * intxtilde'
+    end
+
+    for i = 1:size(faces,2) # triangle number
+        x1 = points[:,faces[1,i]]
+        x2 = points[:,faces[2,i]]
+        x3 = points[:,faces[3,i]]
+
+        deltaS = norm(cross(x2-x1,x3-x1))/2
+
+        if oneind in faces[:,i]
+            w1 = w[:,faces[1,i]]
+            w2 = w[:,faces[2,i]]
+            w3 = w[:,faces[3,i]]
+            # gaussian integration, because quadratic
+            Omega += gauss_nonsingular(x->x_tilde_cross_w(x,yc,w1,w2,w3,x1,x2,x3),x1,x2,x3,2)
+        end
+
+        # gaussian integration, because quadratic
+        M += gauss_nonsingular(x->Mfun(x,yc),x1,x2,x3,2)
+    end
+
+    Omega = inv(M) * Omega
+
+    wprim = Array{Float64}(undef, size(points))
+    for ykey = 1:size(points,2)
+        wprim[:,ykey] = V + cross(Omega,points[:,ykey]-yc)
+    end
+
+    return wprim
 end
 
-println(trapezoid_nonsingular(r1,r2,r3,r1,r2,r3))
-println(gauss_nonsingular(x->x, r1,r2,r3,2))
-println()
+function make_fastwielandtL(points, faces, normals, w, lambda; gaussorder = 3)
+    # w = Lw + F
+    # w = 0 0 0 0 0 1 0 0 , the position of 1 is encoded by oneind
+    oneind = findfirst(x->x==1,w)[1]
+
+    function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [n1 n2 n3] # matrix of vertex normals
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        n = B * zeta_xi_eta
+        return n/norm(n)
+    end
+
+    function make_w(x,x1,x2,x3,w1,w2,w3) # vector linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [w1 w2 w3] # matrix of vertex the vectorfunction
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        return B * zeta_xi_eta
+    end
+
+    function make_f(x,x1,x2,x3,n1,n2,n3,w1,w2,w3,S,ykey)
+        # Tijk = -6 rrr/|r|^5
+        y=points[:,ykey]
+        ny=normals[:,ykey]
+        wy = w[:,ykey]
+
+        nx = make_n(x,x1,x2,x3,n1,n2,n3)
+        wx = make_w(x,x1,x2,x3,w1,w2,w3) # just the same interpolation for w
+
+        r = x - y
+        return 1/(4pi)*(-6)*dot(wx-wy,r)*r*dot(r,nx)/norm(r)^5 - ny/S*dot(wx,nx)
+    end
+
+    S = make_S(points,faces)
+
+    L = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+            if oneind in faces[:,i]
+                #println(i)
+                #println(ykey)
+                x1, x2, x3 = [points[:, faces[j,i]] for j in 1:3]
+                #println("xok")
+
+                #println(size(w))
+                w1, w2, w3 = [w[:, faces[j,i]] for j in 1:3]
+                #println("wok")
+
+                n1, n2, n3 = [normals[:, faces[j,i]] for j in 1:3]
+                #println("nok")
+                #println("fails above")
+
+                hold = gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3,w1,w2,w3,S,ykey), x1,x2,x3,gaussorder)
+                #println("deet")
+                #println(hold)
+                #println(L[:,ykey])
+                L[:,ykey] += hold
+                #println("endisnigh")
+            end
+        end
+    end
+
+    L += fastsolidbody_project(points, faces, w)
+
+    return (1-lambda)/2 * L
+end
+
+function make_fastwielandtLsng(points, faces, normals, w, lambda; gaussorder = 3)
+    # w = Lw + F
+    # w = 0 0 0 0 0 1 0 0 , the position of 1 is encoded by oneind
+    oneind = findfirst(x->x==1,w)[1]
+
+    function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [n1 n2 n3] # matrix of vertex normals
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        n = B * zeta_xi_eta
+        return n/norm(n)
+    end
+
+    function make_w(x,x1,x2,x3,w1,w2,w3) # vector linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [w1 w2 w3] # matrix of vertex the vectorfunction
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        return B * zeta_xi_eta
+    end
+
+    function make_f(x,x1,x2,x3,n1,n2,n3,w1,w2,w3,S,ykey)
+        # Tijk = -6 rrr/|r|^5
+        y=points[:,ykey]
+        ny=normals[:,ykey]
+        wy = w[:,ykey]
+
+        nx = make_n(x,x1,x2,x3,n1,n2,n3)
+        wx = make_w(x,x1,x2,x3,w1,w2,w3) # just the same interpolation for w
+
+        r = x - y
+        return 1/(4pi)*(-6)*dot(wx-wy,r)*r*dot(r,nx)/norm(r)^5 - ny/S*dot(wx,nx)
+    end
+
+    function make_ftimesnormr(x,x1,x2,x3,n1,n2,n3,w1,w2,w3,S,ykey)
+        # Tijk = -6 rrr/|r|^5
+        y=points[:,ykey]
+        ny=normals[:,ykey]
+        wy = w[:,ykey]
+
+        nx = make_n(x,x1,x2,x3,n1,n2,n3)
+        wx = make_w(x,x1,x2,x3,w1,w2,w3) # just the same interpolation for w
+
+        r = x - y
+        return 1/(4pi)*(-6)*dot(wx-wy,r)*r*dot(r,nx)/norm(r)^4 - ny/S*dot(wx,nx)*norm(r)
+    end
+
+    S = make_S(points,faces)
+
+    L = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+            if oneind in faces[:,i]
+                if !(ykey in faces[:,i]) # if not singular triangle
+
+
+                    x1, x2, x3 = [points[:, faces[j,i]] for j in 1:3]
+                    w1, w2, w3 = [w[:, faces[j,i]] for j in 1:3]
+                    n1, n2, n3 = [normals[:, faces[j,i]] for j in 1:3]
+
+                    L[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3,w1,w2,w3,S,ykey), x1,x2,x3,gaussorder)
+
+                else
+                    singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+
+                    x1 = points[:,faces[singul_ind,i]]
+                    x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                    x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                    w1 = w[:,faces[singul_ind,i]]
+                    w2 = w[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                    w3 = w[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                    n1 = normals[:,faces[singul_ind,i]]
+                    n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                    n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                    L[:,ykey] += gauss_weaksingular(x->make_ftimesnormr(x,x1,x2,x3,n1,n2,n3,w1,w2,w3,S,ykey), x1,x2,x3,gaussorder)
+                end
+            end
+        end
+    end
+
+    L += fastsolidbody_project(points, faces, w)
+
+    return (1-lambda)/2 * L
+end
+
+# g = 7
+# order = 1
+# println(gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],g))
+# print((gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],g)
+# - gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],10))
+# / gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],10)*100)
+# println(" %")
+# println()
+# r1 = [0.,0.,0.]
+# r2 = [0.,0.,1.]
+# r3 = [0., 1., 0.]
+# println((trapezoid_nonsingular(dot(r1,r1),dot(r2,r2),dot(r3,r3),r1,r2,r3) - gauss_nonsingular(x->dot(x,x), r1,r2,r3,10)) / gauss_nonsingular(x->dot(x,x), r1,r2,r3,10) *100 )
+#
+#
+# function trapezoid_nonsingular(f1,f2,f3,r1,r2,r3)
+#     #f - function of r
+#     deltaS = norm(cross(r2-r1,r3-r1))/2
+#     return (f1+f2+f3)/3 * deltaS
+# end
+#
+# println(trapezoid_nonsingular(r1,r2,r3,r1,r2,r3))
+# println(gauss_nonsingular(x->x, r1,r2,r3,2))
+# println()
 
 
 # w = Lw + F
@@ -783,4 +1032,46 @@ println()
 # v = w + (lambda-1)/2 * solidbody_project(w)
 #velocities = reshape(varr ,3,size(vertices,2))
 #varr = reshape(velocities ,1,3*size(vertices,2))
-#Lmat  =
+lambda = 10
+Lmat  = Array{Float64}(undef, (3*size(points,2),3*size(points,2)))
+for i = 1:3*size(points,2)
+    varr = zeros(1,3*size(points,2))
+    varr[i] = 1.
+    vels = reshape(varr ,3,size(points,2))
+    vels = make_fastwielandtLsng(points, faces, normals, vels, lambda; gaussorder = 3)
+    varr = reshape(vels ,1,3*size(points,2))
+    Lmat[:,i] = varr
+end
+
+F = make_curvgaussianF(points, faces, normals, divn; gaussorder = 3)
+Farr = reshape(F ,1,3*size(points,2))
+warr = -(Lmat-(Matrix(1.0I, size(Lmat)) )) \ Farr'
+w = reshape(warr ,3,size(points,2))
+velocities_sng = w + (lambda-1)/2 * solidbody_project(points,faces,w)
+
+velocities_test = make_magvelocities(points, normals, lambda, 0, 0, zeros(size(points)), zeros(size(points)))
+
+
+
+
+
+
+using PyPlot
+pygui()
+
+fig = figure(figsize=(7,7))
+ax = fig[:gca](projection="3d")
+
+(x, y, z) = [points[i,:] for i in 1:3]
+(vx, vy, vz) = [velocities_sng[i,:] for i in 1:3]
+
+ax[:scatter](x,y,z, s=2,color="k")
+ax[:quiver](x,y,z,vx,vy,vz, length=30, arrow_length_ratio=0.5)
+
+ax[:set_xlim](-2,2)
+ax[:set_ylim](-2,2)
+ax[:set_zlim](-2,2)
+ax[:set_xlabel]("x axis")
+ax[:set_ylabel]("y axis")
+ax[:set_zlabel]("z axis")
+fig[:show]()
