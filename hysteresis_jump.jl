@@ -42,7 +42,7 @@ end
 
 mu=30
 
-dir = "elong_sphere_11g"
+dir = "hysteresis_1_return3"
 sourcedir = "/home/laigars/sim_data/$dir"
 len = size(readdir(sourcedir),1) - 1
 
@@ -64,14 +64,9 @@ all_ts = []
 
 mean_ps = zeros(3, len)
 i=1
-for f in readdir(sourcedir)[2:end-1]
-    # data = [points, faces, t, H0, Bm, v0max]
+for f in readdir(sourcedir)[2:20:end-1]
     global last_Bm, es, i
-    #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" dat
-    #println("$sourcedir/$f")
     @load "$sourcedir/$f" data
-    #println("step $i")
-    #println(data[6])
     points = data[1]
     faces = data[2]
     Bm = data[end-1]
@@ -95,7 +90,6 @@ for f in readdir(sourcedir)[2:end-1]
     res = Optim.optimize(f,x0)
     a = Optim.minimizer(res)[1]
     b = Optim.minimizer(res)[2]
-
     e = sqrt(1-(a/b)^2)
     ba = b/a
 
@@ -104,7 +98,6 @@ for f in readdir(sourcedir)[2:end-1]
     push!(num_Bms, Bm)
     push!(volumes, -SG.volume(points, faces))
     push!(ts, t)
-    #
     if Bm > last_Bm
         es = []
         push!(all_Bms, Bm)
@@ -116,13 +109,12 @@ for f in readdir(sourcedir)[2:end-1]
 
 end
 
-
 finals = []
 for arr in all_es
     final = shank(arr[end-2:end])
     push!(finals, final)
 end
-
+finals = 1 ./ (1 .- sqrt.(finals))
 
 #p.plot!([0,30], [sb.mean(finals), sb.mean(finals)], label="avg shanked")
 
@@ -134,28 +126,33 @@ all_Bms = Array{Float64,1}(all_Bms)
 ts = Array{Float64,1}(ts)
 es = Array{Float64,1}(es)
 
-p.scatter(num_bas[1:1162], num_Bms[1:1162], label="numerical", color="blue", markerstrokecolor=:lightblue)
-p.scatter!(finals, all_Bms, label="shanked_many", color="blue")#, title="mu = $mu")
-
-p.plot(ts, num_es, label="")
+p.scatter(num_bas, num_Bms, label="numerical", color="blue", markerstrokecolor=:lightblue)
+#p.scatter!(finals, all_Bms, label="shanked_many", color="red")#, title="mu = $mu")
+#p.plot(ts, num_es, label="")
 #p.plot!(ts, num_Bms./5, label="")
-
 #p.scatter!(num_es_few, num_Bms_few, label="all_few", color="orange")
 #p.scatter!(finals_few, all_Bms_few, label="shanked_few", color="red")#, title="mu = $mu")
 #title("mu = $mu")
+p.plot(num_bas)
 p.xlabel!("b/a")
 p.ylabel!("Bm")
-p.xlims!(0,10)
-p.ylims!(1,5)
+#p.xlims!(1,12)
+p.ylims!(4,7)
 p.title!("$sourcedir")
 #e = 0:0.002:finals[end]+0.01
+#p.xticks!(1:0.5:10)
+p.yticks!(1:0.1:9)
+bas = [7.6, 9.8, 1.85, 1.36, 1.17, 1.06]
+bas2 = [8.01, 7.03, 5.69, 5.175]
 
+bmss = [4, 5, 3.8, 2.8, 1.8, 0.8]
+bmss2 = [3.8, 3.4, 3.2, 3.0]
 
+p.scatter(bas, bmss, color=:blue, markersize=8, label="increasing Bm")
+p.scatter!(bas2, bmss2, color=:red, markersize=8, label="decreasing Bm")
 e=0.01:0.001:0.999
-
-ba = 1:0.01:20
+ba = 1:0.01:10
 #p.plot(ba, eq431.(ba, mu), legend=:top, label="teor", color="green")
-
 #p.plot(e, (3/4/pi*4.141)^(1/3) * eq431.(e, 30), legend=:right, title=:"mu=3", label="teor_scaled")
 p.plot!(ba, eq431_ab.(ba, 30), color=:green, label="theoretical")
 
