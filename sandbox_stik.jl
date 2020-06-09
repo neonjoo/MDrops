@@ -1000,6 +1000,531 @@ function make_fastwielandtLsng(points, faces, normals, w, lambda; gaussorder = 3
     return (1-lambda)/2 * L
 end
 
+function make_zerotrapezF(points, faces, normals)
+    # replaces singular values with 0, should be same as F_old
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1 = normals[:,faces[1,i]]
+                n2 = normals[:,faces[2,i]]
+                n3 = normals[:,faces[3,i]]
+                ny = normals[:,ykey]
+
+                r1 = x1 - points[:,ykey]
+                r2 = x2 - points[:,ykey]
+                r3 = x3 - points[:,ykey]
+
+                f1 = 1/(8pi) * ( dot(r1,n1)*ny + dot(r1,ny)*n1 + (1-dot(n1,ny))*r1 - 3*r1*dot(n1+ny,r1)*dot(r1,n1)/norm(r1)^2 )/ norm(r1)^3
+                f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+
+                dS = 0.5 * norm(cross(x2-x1,x3-x1))
+
+                F[:,ykey] += (f1+f2+f3)/3 * dS
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                ny = normals[:,ykey]
+
+                r1 = x1 - points[:,ykey]
+                r2 = x2 - points[:,ykey]
+                r3 = x3 - points[:,ykey]
+
+                f1 = [0.,0.,0.]
+                f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+
+                dS = 0.5 * norm(cross(x2-x1,x3-x1))
+
+                F[:,ykey] += (f1+f2+f3)/3 * dS
+            end
+
+        end
+    end
+    return F
+end
+
+function make_izltrapezF(points, faces, normals)
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            # function make_f(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey],ny=normals[:,ykey])
+            #     nx = make_n(x,x1,x2,x3,n1,n2,n3)
+            #     r = x - y
+            #
+            #     f = ( dot(r,nx)*ny + dot(r,ny)*nx + (1-dot(nx,ny))*r - 3*r*dot(nx+ny,r)*dot(r,nx)/norm(r)^2 )/ norm(r)^3
+            #     return f/(8pi)
+            # end
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1 = normals[:,faces[1,i]]
+                n2 = normals[:,faces[2,i]]
+                n3 = normals[:,faces[3,i]]
+                ny = normals[:,ykey]
+
+                r1 = x1 - points[:,ykey]
+                r2 = x2 - points[:,ykey]
+                r3 = x3 - points[:,ykey]
+
+                f1 = 1/(8pi) * ( dot(r1,n1)*ny + dot(r1,ny)*n1 + (1-dot(n1,ny))*r1 - 3*r1*dot(n1+ny,r1)*dot(r1,n1)/norm(r1)^2 )/ norm(r1)^3
+                f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+
+                dS = 0.5 * norm(cross(x2-x1,x3-x1))
+
+                F[:,ykey] += (f1+f2+f3)/3 * dS
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                # singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+                #
+                # x1 = points[:,faces[singul_ind,i]]
+                # x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                # x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+                #
+                # n1 = normals[:,faces[singul_ind,i]]
+                # n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                # n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+                #
+                # ny = normals[:,ykey]
+                #
+                # r1 = x1 - points[:,ykey]
+                # r2 = x2 - points[:,ykey]
+                # r3 = x3 - points[:,ykey]
+                #
+                # f1 = [0.,0.,0.]
+                # f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                # f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+                #
+                # dS = 0.5 * norm(cross(x2-x1,x3-x1))
+                #
+                # F[:,ykey] += (f1+f2+f3)/3 * dS
+            end
+
+        end
+    end
+    return F
+end
+
+function make_zerogaussianF(points, faces, normals; gaussorder = 3)
+
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [n1 n2 n3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                n = B * zeta_xi_eta
+                return n/norm(n)
+            end
+
+            function make_f(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey],ny=normals[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                r = x - y
+
+                f = ( dot(r,nx)*ny + dot(r,ny)*nx + (1-dot(nx,ny))*r - 3*r*dot(nx+ny,r)*dot(r,nx)/norm(r)^2 )/ norm(r)^3
+                return f/(8pi)
+            end
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1 = normals[:,faces[1,i]]
+                n2 = normals[:,faces[2,i]]
+                n3 = normals[:,faces[3,i]]
+
+                F[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3), x1,x2,x3,gaussorder)
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                ny = normals[:,ykey]
+
+                r1 = x1 - points[:,ykey]
+                r2 = x2 - points[:,ykey]
+                r3 = x3 - points[:,ykey]
+
+                f1 = [0.,0.,0.]
+                f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+
+                dS = 0.5 * norm(cross(x2-x1,x3-x1))
+
+                F[:,ykey] += (f1+f2+f3)/3 * dS
+            end
+
+        end
+    end
+    return F
+end
+
+function make_justsingF(points, faces, normals; gaussorder = 3)
+
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [n1 n2 n3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                n = B * zeta_xi_eta
+                return n/norm(n)
+            end
+
+            function make_f(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey],ny=normals[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                r = x - y
+
+                f = ( dot(r,nx)*ny + dot(r,ny)*nx + (1-dot(nx,ny))*r - 3*r*dot(nx+ny,r)*dot(r,nx)/norm(r)^2 )/ norm(r)^3
+                return f/(8pi)
+            end
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                # x1 = points[:,faces[1,i]]
+                # x2 = points[:,faces[2,i]]
+                # x3 = points[:,faces[3,i]]
+                #
+                # n1 = normals[:,faces[1,i]]
+                # n2 = normals[:,faces[2,i]]
+                # n3 = normals[:,faces[3,i]]
+                #
+                # F[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3), x1,x2,x3,gaussorder)
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                ny = normals[:,ykey]
+
+                r1 = x1 - points[:,ykey]
+                r2 = x2 - points[:,ykey]
+                r3 = x3 - points[:,ykey]
+
+                f1 = [0.,0.,0.]
+                f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+
+                dS = 0.5 * norm(cross(x2-x1,x3-x1))
+
+                F[:,ykey] += (f1+f2+f3)/3 * dS
+            end
+
+        end
+    end
+    return F
+end
+
+function make_justgaussingF(points, faces, normals, divn_p; gaussorder = 3)
+
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [n1 n2 n3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                n = B * zeta_xi_eta
+                return n/norm(n)
+            end
+
+            function make_divn(x,x1,x2,x3,divn1,divn2,divn3) # divn linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [divn1 divn2 divn3] # vector of divn
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                divn = dot(B, zeta_xi_eta)
+                return divn
+            end
+
+            function make_f(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3; y=points[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                divn = make_divn(x,x1,x2,x3,divn1,divn2,divn3)
+                r = x - y
+                Gji = (Matrix(1.0I, (3,3)) / norm(r) +
+                r * r' / norm(r)^3)
+
+                f = -( divn*Gji*nx)
+                return f/(8pi)
+            end
+
+            function make_f_times_normr(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3; y=points[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                divn = make_divn(x,x1,x2,x3,divn1,divn2,divn3)
+                r = x - y
+                Gji_times_normr = (Matrix(1.0I, (3,3))  +
+                r * r' / norm(r)^2)
+
+                f = -( divn*Gji_times_normr*nx)
+                return f/(8pi)
+            end
+
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1 = normals[:,faces[1,i]]
+                n2 = normals[:,faces[2,i]]
+                n3 = normals[:,faces[3,i]]
+
+                divn1 = divn_p[faces[1,i]]
+                divn2 = divn_p[faces[2,i]]
+                divn3 = divn_p[faces[3,i]]
+
+
+                # F[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3), x1,x2,x3,gaussorder)
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                divn1 = divn_p[faces[singul_ind,i]]
+                divn2 = divn_p[faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                divn3 = divn_p[faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                F[:,ykey] += gauss_weaksingular(x->make_f_times_normr(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3), x1,x2,x3,gaussorder)
+                #F[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3), x1,x2,x3,gaussorder)
+            end
+
+        end
+    end
+    return F
+end
+
+function make_justgausnonsingF(points, faces, normals, divn_p; gaussorder = 3)
+
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [n1 n2 n3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                n = B * zeta_xi_eta
+                return n/norm(n)
+            end
+
+            function make_divn(x,x1,x2,x3,divn1,divn2,divn3) # divn linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [divn1 divn2 divn3] # vector of divn
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                divn = dot(B, zeta_xi_eta)
+                return divn
+            end
+
+            function make_f(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3; y=points[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                divn = make_divn(x,x1,x2,x3,divn1,divn2,divn3)
+                r = x - y
+                Gji = (Matrix(1.0I, (3,3)) / norm(r) +
+                r * r' / norm(r)^3)
+
+                f = -( divn*Gji*nx)
+                return f/(8pi)
+            end
+
+            function make_f_times_normr(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3; y=points[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                divn = make_divn(x,x1,x2,x3,divn1,divn2,divn3)
+                r = x - y
+                Gji_times_normr = (Matrix(1.0I, (3,3))  +
+                r * r' / norm(r)^2)
+
+                f = -( divn*Gji_times_normr*nx)
+                return f/(8pi)
+            end
+
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1 = normals[:,faces[1,i]]
+                n2 = normals[:,faces[2,i]]
+                n3 = normals[:,faces[3,i]]
+
+                divn1 = divn_p[faces[1,i]]
+                divn2 = divn_p[faces[2,i]]
+                divn3 = divn_p[faces[3,i]]
+
+
+                F[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3), x1,x2,x3,gaussorder)
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                divn1 = divn_p[faces[singul_ind,i]]
+                divn2 = divn_p[faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                divn3 = divn_p[faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+
+                #F[:,ykey] += gauss_weaksingular(x->make_f_times_normr(x,x1,x2,x3,n1,n2,n3,divn1,divn2,divn3), x1,x2,x3,gaussorder)
+                #F[:,ykey] += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3), x1,x2,x3,gaussorder)
+            end
+
+        end
+    end
+    return F
+end
+
+function make_justnonsingF(points, faces, normals; gaussorder = 3)
+
+    F = zeros(size(points))
+    for ykey = 1:size(points,2)
+        for i = 1:size(faces,2) # triangle number
+
+            function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [n1 n2 n3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                n = B * zeta_xi_eta
+                return n/norm(n)
+            end
+
+            function make_f(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey],ny=normals[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                r = x - y
+
+                f = ( dot(r,nx)*ny + dot(r,ny)*nx + (1-dot(nx,ny))*r - 3*r*dot(nx+ny,r)*dot(r,nx)/norm(r)^2 )/ norm(r)^3
+                return f/(8pi)
+            end
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1 = normals[:,faces[1,i]]
+                n2 = normals[:,faces[2,i]]
+                n3 = normals[:,faces[3,i]]
+                ny = normals[:,ykey]
+
+                r1 = x1 - points[:,ykey]
+                r2 = x2 - points[:,ykey]
+                r3 = x3 - points[:,ykey]
+
+                f1 = 1/(8pi) * ( dot(r1,n1)*ny + dot(r1,ny)*n1 + (1-dot(n1,ny))*r1 - 3*r1*dot(n1+ny,r1)*dot(r1,n1)/norm(r1)^2 )/ norm(r1)^3
+                f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+
+                dS = 0.5 * norm(cross(x2-x1,x3-x1))
+
+                F[:,ykey] += (f1+f2+f3)/3 * dS
+            else # if is singular triangle
+
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                # singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+                #
+                # x1 = points[:,faces[singul_ind,i]]
+                # x2 = points[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                # x3 = points[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+                #
+                # n1 = normals[:,faces[singul_ind,i]]
+                # n2 = normals[:,faces[(singul_ind + 1 - 1) % 3 + 1,i]]
+                # n3 = normals[:,faces[(singul_ind + 2 - 1) % 3 + 1,i]]
+                #
+                # ny = normals[:,ykey]
+                #
+                # r1 = x1 - points[:,ykey]
+                # r2 = x2 - points[:,ykey]
+                # r3 = x3 - points[:,ykey]
+                #
+                # f1 = [0.,0.,0.]
+                # f2 = 1/(8pi) * ( dot(r2,n2)*ny + dot(r2,ny)*n2 + (1-dot(n2,ny))*r2 - 3*r2*dot(n2+ny,r2)*dot(r2,n2)/norm(r2)^2 )/ norm(r2)^3
+                # f3 = 1/(8pi) * ( dot(r3,n3)*ny + dot(r3,ny)*n3 + (1-dot(n3,ny))*r3 - 3*r3*dot(n3+ny,r3)*dot(r3,n3)/norm(r3)^2 )/ norm(r3)^3
+                #
+                # dS = 0.5 * norm(cross(x2-x1,x3-x1))
+                #
+                # F[:,ykey] += (f1+f2+f3)/3 * dS
+            end
+
+        end
+    end
+    return F
+end
 # g = 7
 # order = 1
 # println(gauss_nonsingular(x->dot(x,x)^(order/2), [0.,0.,0.],[0.,0.,1.],[0., 5., 0.5],g))
@@ -1044,34 +1569,45 @@ for i = 1:3*size(points,2)
 end
 
 F = make_curvgaussianF(points, faces, normals, divn; gaussorder = 3)
+F_izl = make_izlgaussianF(points, faces, normals; gaussorder = 3)
+F10 = make_curvgaussianF(points, faces, normals, divn; gaussorder = 10)
 Farr = reshape(F ,1,3*size(points,2))
 warr = -(Lmat-(Matrix(1.0I, size(Lmat)) )) \ Farr'
 w = reshape(warr ,3,size(points,2))
 velocities_sng = w + (lambda-1)/2 * solidbody_project(points,faces,w)
 
 velocities_test = make_magvelocities(points, normals, lambda, 0, 0, zeros(size(points)), zeros(size(points)))
+F_test = make_magvelocities(points, normals, 1, 0, 0, zeros(size(points)), zeros(size(points)))
 
 
+# check if divergence is zero
+deltaS = make_dS(points,faces)
+V = 1/3 * sum(sum(points .* normals,dims=1) .* deltaS')
+Fcheck = sum(sum(F .* normals,dims=1) .* deltaS') / V
+F10check = sum(sum(F10 .* normals,dims=1) .* deltaS') / V
+F_testcheck = sum(sum(F_test .* normals,dims=1) .* deltaS') / V
+velocities_sngcheck = sum(sum(velocities_sng .* normals,dims=1) .* deltaS') / V
+velocities_testcheck = sum(sum(velocities_test .* normals,dims=1) .* deltaS') / V
 
 
-
-
-using PyPlot
-pygui()
-
-fig = figure(figsize=(7,7))
-ax = fig[:gca](projection="3d")
-
-(x, y, z) = [points[i,:] for i in 1:3]
-(vx, vy, vz) = [velocities_sng[i,:] for i in 1:3]
-
-ax[:scatter](x,y,z, s=2,color="k")
-ax[:quiver](x,y,z,vx,vy,vz, length=30, arrow_length_ratio=0.5)
-
-ax[:set_xlim](-2,2)
-ax[:set_ylim](-2,2)
-ax[:set_zlim](-2,2)
-ax[:set_xlabel]("x axis")
-ax[:set_ylabel]("y axis")
-ax[:set_zlabel]("z axis")
-fig[:show]()
+#
+# using PyPlot
+# pygui()
+#
+# fig = figure(figsize=(7,7))
+# ax = fig[:gca](projection="3d")
+#
+# (x, y, z) = [points[i,:] for i in 1:3]
+# (vx, vy, vz) = [velocities_sng[i,:] for i in 1:3]
+#
+# ax[:scatter](x,y,z, s=2,color="k")
+# ax[:quiver](x,y,z,vx,vy,vz, length=30, arrow_length_ratio=0.5)
+#
+# ax[:set_xlim](-2,2)
+# ax[:set_ylim](-2,2)
+# ax[:set_zlim](-2,2)
+# ax[:set_xlabel]("x axis")
+# ax[:set_ylabel]("y axis")
+# ax[:set_zlabel]("z axis")
+# fig[:show]()
+#
