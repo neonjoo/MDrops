@@ -2,6 +2,7 @@ using CSV
 using FastGaussQuadrature
 using LinearAlgebra
 using StatsBase
+cd("/home/andris/MDrops/")
 include("./stabilization.jl")
 include("./functions.jl")
 include("./mesh_functions.jl")
