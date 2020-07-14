@@ -18,18 +18,6 @@ function NormalsTheoretical(points, coef)
 end
 
 
-struct coefs
-    a
-    b
-    c
-end
-
-#a, b = 1, 1
-#c = 1/a/b
-#coef = coefs(a, b, c)
-
-
-
 function Normals(points, faces)
     all_normals = zeros(3, size(points,2))
     for i in 1:size(points)[2]
@@ -354,40 +342,3 @@ function InterfaceSpeedZinchenko(points,faces,forcen,etaP,gammap, normals)
     end
     return velocityn
 end
-
-
-
-
-#
-#using Plots
-# plots = Plo
-
-# #
-# pygui(true)
-# pyplot()
-#
-# (x, y, z) = [zeros(1, size(points,2)) for i in 1:3]
-# fig = figure(figsize=(7,7))
-# ax = fig[:gca](projection="3d")
-# for i in [50, 2000]
-#     if i % 500 == 0
-#     @load "./simul/points$i.jld2" points2
-#     global x,y,z
-#     (x, y, z) = [points2[j,:] for j in 1:3]
-#     #end
-#     ax[:scatter](x,y,z, s=3, label="$i")#,color="k")
-# end
-#ax[:quiver](x,y,z,vnx,vny,vnz, length=2, arrow_length_ratio=0.5)
-
-#ax[:quiver](x,y,z,Hnx,Hny,Hnz, length=0.3, arrow_length_ratio=0.5)
-#ax[:quiver](x,y,z,Htx,Hty,Htz, length=0.3, arrow_length_ratio=0.5)
-#ax[:quiver](x,y,z,Hx,Hy,Hz, length=0.3)
-#
-# ax[:set_xlim](-2,2)
-# ax[:set_ylim](-2,2)
-# ax[:set_zlim](-2,2)
-# ax[:set_xlabel]("x axis")
-# ax[:set_ylabel]("y axis")
-# ax[:set_zlabel]("z axis")
-# ax[:legend]()
-# fig[:show]()

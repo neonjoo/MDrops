@@ -1063,10 +1063,10 @@ fig = figure(figsize=(7,7))
 ax = fig[:gca](projection="3d")
 
 (x, y, z) = [points[i,:] for i in 1:3]
-(vx, vy, vz) = [velocities_sng[i,:] for i in 1:3]
+(vx, vy, vz) = [F[i,:] for i in 1:3]
 
 ax[:scatter](x,y,z, s=2,color="k")
-ax[:quiver](x,y,z,vx,vy,vz, length=30, arrow_length_ratio=0.5)
+ax[:quiver](x,y,z,vx,vy,vz, length=3, arrow_length_ratio=0.5)
 
 ax[:set_xlim](-2,2)
 ax[:set_ylim](-2,2)

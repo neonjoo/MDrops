@@ -105,6 +105,7 @@ points = Array{Float64}(points)
 faces = Array{Int64}(faces)
 normals = Normals(points, faces)
 H0 = [0., 0., 1.]
+
 function make_L_curved(points, faces)
     normals = Normals(points, faces)
     deltaS = make_dS(points,faces)
@@ -116,7 +117,7 @@ function make_L_curved(points, faces)
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     curvas = make_pc(CDE)
     divN = curvas[1] + curvas[2]
-
+    println(3333)
     for ykey in 1:N
         ny = normals[:, ykey]
         ry = points[:, ykey]
@@ -215,7 +216,6 @@ function make_L_sing(points, faces; gaussorder=5)
     end
 
 
-
     for ykey in 1:N
         function make_L(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey],ny=normals[:,ykey])
             nx = make_n(x,x1,x2,x3,n1,n2,n3)
@@ -261,16 +261,16 @@ function make_L_sing(points, faces; gaussorder=5)
         end
     end
 
-    return -L
+    return -L # implement the minus in the end. For a sphere L=-1 for all points
 end
 
 function make_deltaH_normal(points, faces, alpha, H0)
     normals = Normals(points, faces)
     deltaS = make_dS(points,faces)
     N = size(points, 2)
-    L = make_L_sing(points, faces; gaussorder=3)
-    L = Diagonal(alpha/(alpha-1) .- L)
-    D = zeros(Float64, N, N) # integral equation matrix
+    L = make_L_sing(points, faces; gaussorder=5)
+    L = Diagonal(alpha/(alpha-1) .- L) # alpha term should be positive
+    F = zeros(Float64, N, N) # integral equation matrix
     H = zeros(Float64, N)
 
     for ykey in 1:N
@@ -283,33 +283,44 @@ function make_deltaH_normal(points, faces, alpha, H0)
             end
             nx = normals[:, xkey]
             rx = points[:, xkey]
-            D[ykey, xkey] += dot(ny, rx-ry) / norm(rx-ry)^3 * deltaS[xkey]
+            F[ykey, xkey] +=  dot(ny, ry-rx) / norm(ry-rx)^3 * deltaS[xkey] / (4pi)
 
         end
     end
 
     for ykey in 1:N
-        H[ykey] = dot(H0, normals[:, ykey])
+        H[ykey] = dot(H0, normals[:, ykey]) # no minus
     end
 
+    F_reg = F - Diagonal([sum(F[i, :]) for i in 1:N])
+    deltaH_normal = (L - F_reg) \ H
 
-    D_reg = D - Diagonal([sum(D[i, :]) for i in 1:N])
-    return (L + D_reg/(4pi)) \ H
+    return deltaH_normal' / (alpha - 1)
 end
 
-dHn = @time make_deltaH_normal(points, faces, 2., [0., 0., 1.])
+#points_csv= CSV.read("./meshes/points_ellipse_fewN.csv", header=0)
+#faces_csv = CSV.read("./meshes/faces_ellipse_fewN.csv", header=0)
+
+points = convert(Array, points_csv)
+faces = convert(Array, faces_csv)
+
+dHn = @time make_deltaH_normal(points, faces, 2, [0., 0., 1.])
+
+Hs2_e_L5 = make_deltaH_normal(points, faces, 2, [0., 0., 1.])
+Hs5_el = make_deltaH_normal(points, faces, 5, [0., 0., 1.])
+Hs30 = make_deltaH_normal(points, faces, 30, [0., 0., 1.])
 
 L_kurva3 = @time make_L_curved_gauss(points, faces; gaussorder=3)
 L_kurva5 = @time make_L_curved_gauss(points, faces; gaussorder=5)
-L_kurva10 = @time make_L_curved_gauss(points, faces; gaussorder=10)
+#L_kurva10 = @time make_L_curved_gauss(points, faces; gaussorder=10)
 L_sing3 = @time make_L_sing(points, faces; gaussorder=3)
 L_sing5 = @time make_L_sing(points, faces; gaussorder=5)
 L_sing10 = @time make_L_sing(points, faces; gaussorder=10)
 
-
+normals = Normals(points, faces)
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
-normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+#normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
 mu=2
 psi = PotentialSimple(points, faces, mu, H0; normals = normals)
@@ -323,11 +334,14 @@ using PyPlot
 fig = figure(figsize=(7,7))
 ax = fig[:gca](projection="3d")
 (x, y, z) = [points[i,:] for i in 1:3]
-(vx, vy, vz) = [(normals .* dHn')[i,:] for i in 1:3]
-#(vx, vy, vz) = [Hn[i,:] for i in 1:3]
-#(vx, vy, vz) = [(H0 .* normals)[i,:] for i in 1:3]
+(vx, vy, vz) = [(normals .* Ht2)[i,:] for i in 1:3]
+#ax[:quiver](x,y,z,vx,vy,vz, length=0.6, arrow_length_ratio=0.5, color=:black)
+(vx, vy, vz) = [(normals .* Hs2)[i,:] for i in 1:3]
+#ax[:quiver](x,y,z,vx,vy,vz, length=0.6, arrow_length_ratio=0.5, color=:blue)
+(vx, vy, vz) = [(normals .* erd_norm)[i,:] for i in 1:3]
+ax[:quiver](x,y,z,vx,vy,vz, length=0.6, arrow_length_ratio=0.5, color=:red)
 ax[:scatter](x,y,z, s=2,color="k")
-ax[:quiver](x,y,z,vx,vy,vz, length=0.5, arrow_length_ratio=0.5)
+#ax[:quiver](x,y,z,vx,vy,vz, length=50, arrow_length_ratio=0.5)
 ax[:set_xlim](-2,2)
 ax[:set_ylim](-2,2)
 ax[:set_zlim](-2,2)

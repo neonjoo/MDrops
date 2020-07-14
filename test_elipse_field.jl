@@ -6,6 +6,7 @@ using PyPlot
 pygui()
 
 include("./functions.jl")
+include("./mesh_functions.jl")
 
 function demag_coefs(a, b, c)
     upper_limit = 2000
@@ -22,33 +23,40 @@ function field_theor(a, b, c, mu, H0)
 
     Ns = demag_coefs(a,b,c)
 
-    Hx = H0[1] / (1 + Ns[1] * (mu-mu0)/mu0)
-    Hy = H0[2] / (1 + Ns[2] * (mu-mu0)/mu0)
-    Hz = H0[3] / (1 + Ns[3] * (mu-mu0)/mu0)
+    Hx = H0[1] / (1 + Ns[1] * (mu-1))
+    Hy = H0[2] / (1 + Ns[2] * (mu-1))
+    Hz = H0[3] / (1 + Ns[3] * (mu-1))
 
     return [Hx, Hy, Hz]
 end
 
 
-points_csv= CSV.read("./meshes/points_ellipse_manyN.csv", header=0)
-faces_csv = CSV.read("./meshes/faces_ellipse_manyN.csv", header=0)
+#points_csv= CSV.read("./meshes/points_ellipse_manyN.csv", header=0)
+#faces_csv = CSV.read("./meshes/faces_ellipse_manyN.csv", header=0)
 
 println("Loaded mesh")
 
-points = convert(Array, points_csv)
-faces = convert(Array, faces_csv)
-points = Array{Float64}(points')
-faces = Array{Int64}(faces')
+# points = convert(Array, points_csv)
+# faces = convert(Array, faces_csv)
+# points = Array{Float64}(points')
+# faces = Array{Int64}(faces')
 
+points, faces = expand_icosamesh(R=1, depth=2)
+points = Array{Float64}(points)
+faces = Array{Int64}(faces)
+normals = Normals(points, faces)
+
+H0 = [0., 0., 1.]
 a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
+a,b,c = 1, 1, 2.21
 mu = 2
 mu0 = 4*pi*10e-7
-H0 = [0,1,1]
+H0 = [0,0,1]
 normals = Normals(points, faces)
 
 Hin_teor = field_theor(a,b,c,mu,H0)
 H_teor = zeros(3, size(points,2))
-
+Hn_teor = sum(normals .* Hin_teor, dims=1)
 for i in 1:size(points,2)
     H_teor[:,i] = Hin_teor .* [1,1,1]
 end
@@ -70,8 +78,9 @@ ax = fig[:gca](projection="3d")
 (x, y, z) = [points[i,:] for i in 1:3]
 #(vnx, vny, vnz) = [velocities[i,:] for i in 1:3]
 ax[:scatter](x,y,z, s=2,color="k")
-ax[:quiver](x,y,z,H_num[1],H_num[2],H_num[3], length=0.1, arrow_length_ratio=0.5, color="black")
-ax[:quiver](x,y,z,H_teor[1],H_teor[2],H_teor[3], length=0.1, arrow_length_ratio=0.5)
+H_num = H_gauss
+ax[:quiver](x,y,z,H_num[1],H_num[2],H_num[3], length=1, arrow_length_ratio=0.5, color="black")
+ax[:quiver](x,y,z,H_teor[1],H_teor[2],H_teor[3], length=3000, arrow_length_ratio=0.5, color="red")
 ax[:set_xlim](-2,2)
 ax[:set_ylim](-2,2)
 ax[:set_zlim](-2,2)

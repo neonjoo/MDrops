@@ -24,28 +24,28 @@ function make_icosamesh(;R=1)
 
     #triangles are marked counter clockwise, looking from the outside
     #top
-    triangles[1,:] = [1,10,2]
-    triangles[2,:] = [1,2,4]
-    triangles[3,:] = [1,4,6]
-    triangles[4,:] = [1,6,8]
-    triangles[5,:] = [1,8,10]
+    triangles[1,:] = [1,2,10]
+    triangles[2,:] = [1,4,2]
+    triangles[3,:] = [1,6,4]
+    triangles[4,:] = [1,8,6]
+    triangles[5,:] = [1,10,8]
     #middle
-    triangles[6,:] = [2,11,3]
-    triangles[7,:] = [2,3,4]
-    triangles[8,:] = [3,5,4]
-    triangles[9,:] = [4,5,6]
-    triangles[10,:] = [5,7,6]
-    triangles[11,:] = [6,7,8]
-    triangles[12,:] = [7,9,8]
-    triangles[13,:] = [8,9,10]
-    triangles[14,:] = [9,11,10]
-    triangles[15,:] = [2,10,11]
+    triangles[6,:] = [2,3,11]
+    triangles[7,:] = [2,4,3]
+    triangles[8,:] = [3,4,5]
+    triangles[9,:] = [4,6,5]
+    triangles[10,:] = [5,6,7]
+    triangles[11,:] = [6,8,7]
+    triangles[12,:] = [7,8,9]
+    triangles[13,:] = [8,10,9]
+    triangles[14,:] = [9,10,11]
+    triangles[15,:] = [2,11,10]
     #bottom
-    triangles[16,:] = [3,11,12]
-    triangles[17,:] = [3,12,5]
-    triangles[18,:] = [5,12,7]
-    triangles[19,:] = [7,12,9]
-    triangles[20,:] = [9,12,11]
+    triangles[16,:] = [3,12,11]
+    triangles[17,:] = [3,5,12]
+    triangles[18,:] = [5,7,12]
+    triangles[19,:] = [7,9,12]
+    triangles[20,:] = [9,11,12]
 
     return vertices, triangles
 end
@@ -177,6 +177,28 @@ function to_local(r::Array{Float64,1},normal::Array{Float64,1})
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
     sint = sqrt( 1 - normal[3]^2 )
 
+    A = [cosf  -sinf  0;
+        sinf*cost  cosf*cost  -sint;
+        sinf*sint  cosf*sint  cost]
+
+    rprim = A * r
+    return rprim
+end
+
+function to_local2(r::Array{Float64,1},normal::Array{Float64,1})
+    # rotate a vector to local coordinate system
+    # with z axis along a normal
+    if abs(normal[3]) == 1.
+        cosf = 1.
+        cost = normal[3]
+        sinf = 0.
+        sint = sqrt( 1 - normal[3]^2 )
+    else
+        cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
+        cost = normal[3]
+        sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
+        sint = sqrt( 1 - normal[3]^2 )
+    end
     A = [cosf  -sinf  0;
         sinf*cost  cosf*cost  -sint;
         sinf*sint  cosf*sint  cost]
