@@ -2,7 +2,7 @@
 % b = 0.9;
 % c = 1/(a*b);
 %fd=@(p)  p(:,1).^2/a^2+p(:,2).^2/b^2+p(:,3).^2/c^2-1;
-lambda = 0.95;
+lambda = 0.8;
 bfun = @(bvar) surface_A(bvar,lambda);
 b = fzero(bfun,1);
 a = lambda * b;
@@ -11,7 +11,7 @@ fd=@(p)  (p(:,1).^2 + p(:,2).^2 + p(:,3).^2).^2 ...
         - 2*a^2*(p(:,1).^2 - p(:,2).^2 - p(:,3).^2) ...
         + a^4 - b^4;
 
-triangsize = 0.07;
+triangsize = 0.055;
 
 xlim = 2.6;
 ylim = 2.6;
@@ -28,6 +28,6 @@ for i = 1:size(t,1)
    
    S = S + 0.5 * norm(cross(x3-x1,x2-x1));
 end
-
-csvwrite('points_peanut_lambda095.csv',p)
-csvwrite('faces_peanut_lambda095.csv',t)
+fname = strcat('peanut_','a',num2str(a),'b',num2str(b),'moreN');
+csvwrite(strcat('points_',fname,'.csv'),p)
+csvwrite(strcat('faces_',fname,'.csv'),t)

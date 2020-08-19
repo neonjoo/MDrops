@@ -185,28 +185,6 @@ function to_local(r::Array{Float64,1},normal::Array{Float64,1})
     return rprim
 end
 
-function to_local2(r::Array{Float64,1},normal::Array{Float64,1})
-    # rotate a vector to local coordinate system
-    # with z axis along a normal
-    if abs(normal[3]) == 1.
-        cosf = 1.
-        cost = normal[3]
-        sinf = 0.
-        sint = sqrt( 1 - normal[3]^2 )
-    else
-        cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
-        cost = normal[3]
-        sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
-        sint = sqrt( 1 - normal[3]^2 )
-    end
-    A = [cosf  -sinf  0;
-        sinf*cost  cosf*cost  -sint;
-        sinf*sint  cosf*sint  cost]
-
-    rprim = A * r
-    return rprim
-end
-
 function to_global(rprim::Array{Float64,1},normal::Array{Float64,1})
     # rotate a vector back to global coordinates
     # from a local coordinate system along a normal
