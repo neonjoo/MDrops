@@ -157,12 +157,17 @@ function gauss_flat_local_vec(f::Function,r1,r2,r3,gaussorder)
 
     r1_loc, r2_loc, r3_loc = r1-r1, r2-r1, r3-r1
     r2_loc, r3_loc = to_local(r2_loc,n_triang), to_local(r3_loc,n_triang)
-
     x2, x3 = r2_loc[1], r3_loc[1]
     y2, y3 = r2_loc[2], r3_loc[2]
 
-    # angles are from 0 to 2pi, masured from the x axis
-    theta2, theta3 = mod2pi(atan(y2,x2)+2pi + 1e-15) - 1e-15, mod2pi(atan(y3,x3)+2pi + 1e-15) - 1e-15
+    # angles are from -pi to pi, masured from the x axis
+    theta2, theta3 = atan(y2,x2), atan(y3,x3)
+
+
+    # effectively change integration limits so that theta sweeps only the triangle
+    if (theta3 - theta2) > pi
+        theta2 += 2pi
+    end
 
     u, wu = gausslegendre(gaussorder) # u from -1 to 1
     v, wv = u, wu # for convenient notation
@@ -194,6 +199,9 @@ function gauss_flat_local_vec(f::Function,r1,r2,r3,gaussorder)
     for i = 1:length(v)
         theta = make_theta(v[i], theta2, theta3)
         rho_m = make_rho_m(theta, x2, x3, y2, y3)
+        if rho_m <0
+            println("----: ", rho_m)
+        end
         for k = 1:length(u)
             rho = make_rho(u[k], rho_m)
             intval += wv[i]*(theta3 - theta2)/2 *
@@ -202,7 +210,7 @@ function gauss_flat_local_vec(f::Function,r1,r2,r3,gaussorder)
         end
     end
 
-    if theta2>theta3 # change of sign if integration limits are reversed
+    if theta2>theta3 # change of sign if integration limits were reversed
         intval *= -1
     end
 
@@ -217,12 +225,16 @@ function gauss_flat_local_scal(f::Function,r1,r2,r3,gaussorder)
 
     r1_loc, r2_loc, r3_loc = r1-r1, r2-r1, r3-r1
     r2_loc, r3_loc = to_local(r2_loc,n_triang), to_local(r3_loc,n_triang)
-
     x2, x3 = r2_loc[1], r3_loc[1]
     y2, y3 = r2_loc[2], r3_loc[2]
 
-    # angles are from 0 to 2pi, masured from the x axis
-    theta2, theta3 = mod2pi(atan(y2,x2)+2pi + 1e-15) - 1e-15, mod2pi(atan(y3,x3)+2pi + 1e-15) - 1e-15
+    # angles are from -pi to pi, masured from the x axis
+    theta2, theta3 = atan(y2,x2), atan(y3,x3)
+
+    # effectively change integration limits so that theta sweeps only the triangle
+    if (theta3 - theta2) > pi
+        theta2 += 2pi
+    end
 
     u, wu = gausslegendre(gaussorder) # u from -1 to 1
     v, wv = u, wu # for convenient notation
@@ -262,7 +274,7 @@ function gauss_flat_local_scal(f::Function,r1,r2,r3,gaussorder)
         end
     end
 
-    if theta2>theta3 # change of sign if integration limits are reversed
+    if theta2>theta3 # change of sign if integration limits were reversed
         intval *= -1
     end
 
@@ -764,6 +776,74 @@ function make_H_tang_skip_singul(points, faces, normals, delta_H_normal, H0; gau
     return H_tang'
 end
 
+function make_H_tang_flatpolar(points, faces, normals, delta_H_normal, H0; gaussorder = 5)
+    N = size(points, 2)
+    H_tang = Array{Float64}(undef, N)
+
+    function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [n1 n2 n3] # matrix of vertex normals
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        n = B * zeta_xi_eta
+        return n/norm(n)
+    end
+
+    function make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3) # delta_H_normal linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [dHn1 dHn2 dHn3] # vector of vertex delta_H_normal
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        return dot(B, zeta_xi_eta)
+    end
+
+    for ykey in 1:N
+        n_cross_H = cross(normals[:, ykey], H0)
+
+        for i in 1:size(faces, 2)
+
+            function make_f(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3; y=points[:,ykey],ny=normals[:,ykey], dHny = delta_H_normal[ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                dHnx = make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3)
+                r = y - x
+
+                return 1/(4pi) * 1/norm(r)^3 * cross(dHnx*ny - dHny*nx , r)
+            end
+
+            #println("triangle: $i")
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1, x2, x3 = [points[:, faces[j,i]] for j in 1:3]
+                n1, n2, n3 = [normals[:, faces[j,i]] for j in 1:3]
+                dHn1,dHn2,dHn3 = [delta_H_normal[faces[j,i]] for j in 1:3]
+
+                n_cross_H += gauss_nonsingular(x->make_f(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,gaussorder)
+                #println(x1, x2, x3)
+            else # if is singular triangle
+                singul_ind = findfirst(ind->ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 1) % 3 + 1,i]]
+
+                dHn1 = delta_H_normal[faces[singul_ind,i]]
+                dHn2 = delta_H_normal[faces[(singul_ind) % 3 + 1,i]]
+                dHn3 = delta_H_normal[faces[(singul_ind + 1) % 3 + 1,i]]
+
+                n_cross_H += gauss_flat_local_vec(x->make_f(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,gaussorder)
+            end
+        end
+        H_tang[ykey] = norm(n_cross_H)
+    end
+
+    return H_tang'
+end
+
 function demag_coefs(a, b, c)
     upper_limit = 2000
     Rq2(q) = (a^2+q) * (b^2+q) * (c^2+q)
@@ -809,6 +889,7 @@ Ht_dc = make_H_tang_doublecross(points, faces, normals, deltaHn, H0; gaussorder 
 Ht_sa = make_H_tang_semianal(points, faces, normals, deltaHn, H0, CDE; gaussorder = 5)
 Ht_hq = make_H_tang_hquad(points, faces, normals, deltaHn, H0; gaussorder = 5)
 Ht_skip = make_H_tang_skip_singul(points, faces, normals, deltaHn, H0; gaussorder = 5)
+Ht_fp = make_H_tang_flatpolar(points, faces, normals, deltaHn, H0; gaussorder = 5)
 psi = PotentialSimple(points, faces, mu, H0; normals = normals)
 Ht_erd = HtField(points, faces, psi, normals)
 Ht_erd = sqrt.(sum(Ht_erd .* Ht_erd, dims = 1))
