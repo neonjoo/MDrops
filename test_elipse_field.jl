@@ -48,7 +48,7 @@ normals = Normals(points, faces)
 
 H0 = [0., 0., 1.]
 a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
-a,b,c = 1, 1, 2.21
+a,b,c = 1, 1, 1
 mu = 2
 mu0 = 4*pi*10e-7
 H0 = [0,0,1]

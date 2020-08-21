@@ -513,6 +513,39 @@ function project_on_drop(points::Array{Float64,2},CDE::Array{Float64,2},normals:
     return r0
 end
 
+function project_on_given_paraboloid(CDE::Array{Float64,1},normal::Array{Float64,1},r0::Array{Float64,1}, r)
+    # projects a point r0 on the paraboloid fitted around point at r
+    # z = Cx^2 + D*x*y + E*y^2
+    r0 = to_local(r0 - r, normal)
+    
+    f(x::Array{Float64,1}) = (x[1]-r0[1])^2 + (x[2]-r0[2])^2 +
+            (CDE[1]*x[1]^2 + CDE[2]*x[1]*x[2] + CDE[3]*x[2]^2 - r0[3])^2
+
+    function g!(storage::Array{Float64,1},x::Array{Float64,1}) # gradient of f
+        grad = storage
+        grad[1] = 2*(x[1]-r0[1] + (2*CDE[1]*x[1] + CDE[2]*x[2])*(CDE[1]*x[1]^2 + CDE[2]*x[1]*x[2] + CDE[3]*x[2]^2 - r0[3]))
+        grad[2] = 2*(x[2]-r0[2] + (CDE[2]*x[1] + 2*CDE[3]*x[2])*(CDE[1]*x[1]^2 + CDE[2]*x[1]*x[2] + CDE[3]*x[2]^2 - r0[3]))
+    end
+
+    function h!(storage::Array{Float64,2},x::Array{Float64,1}) # hessian of f
+        h = storage
+        h[1, 1] = 2.0 + 2*(2*CDE[1]*x[1] + CDE[2]*x[2])^2 + 4*CDE[1]*(CDE[1]*x[1]^2 + CDE[2]*x[1]*x[2] + CDE[3]*x[2]^2 - r0[3])
+        h[1, 2] = 2*CDE[1]*x[1]*(3*CDE[2]*x[1] + 4*CDE[3]*x[2]) + 2*CDE[2]*(2*CDE[2]*x[1]*x[2] + 3*CDE[3]*x[2]^2 - r0[3])
+        h[2, 1] = 2*CDE[1]*x[1]*(3*CDE[2]*x[1] + 4*CDE[3]*x[2]) + 2*CDE[2]*(2*CDE[2]*x[1]*x[2] + 3*CDE[3]*x[2]^2 - r0[3])
+        h[2, 2] = 2.0 + 2*(CDE[2]*x[1] + 2*CDE[3]*x[2])^2 + 4*CDE[3]*(CDE[1]*x[1]^2 + CDE[2]*x[1]*x[2] + CDE[3]*x[2]^2 - r0[3])
+    end
+
+    x0 = [r0[1],r0[2]]
+
+    res = Optim.optimize(f,g!,h!,x0,NewtonTrustRegion(),Optim.Options(f_tol=1.e-8))
+    x1 = Optim.minimizer(res)[1]
+    x2 = Optim.minimizer(res)[2]
+    r0 = [x1,x2,CDE[1]*x1^2 + CDE[2]*x1*x2 + CDE[3]*x2^2]
+
+    r0 = to_global(r0,normal) + r
+    return r0
+end
+
 function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::Array{Float64,2},connectivity::Array{Int64,2},edges::Array{Int64,2},normals::Array{Float64,2};
     deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
     # actively rearange vertices on a surfaces given by fitted paraboloids
@@ -691,8 +724,6 @@ function make_Cdeltas(points, faces)
     return Cdeltas
 end
 
-
-
 function flip_edges(faces, connectivity, vertices)
     # flip edges to improve mesh, updates "faces" and "connectivity"
 
@@ -761,9 +792,7 @@ function flip_edges(faces, connectivity, vertices)
     println("--------- Flipped any?  $flipped_any ---- ")
 
     return faces, connectivity, flipped_any
-
-end # end function
-
+end
 
 function flip_connectivity(faces, connectivity, i, j, k, m)
     # adjusts faces & connectivity to the i--j  ->  k--m edge flip
@@ -830,8 +859,7 @@ function flip_connectivity(faces, connectivity, i, j, k, m)
     end # end if
 
     return faces, connectivity
-end # end function
-
+end
 
 function find_circumcenter(x1, x2, x3)
     # finds circumcenter coordinates of a triangle
@@ -843,16 +871,13 @@ function find_circumcenter(x1, x2, x3)
     c = norm(x1-x2)^2 * dot(x3-x1, x3-x2) / d
 
     return a*x1 + b*x2 + c*x3
-
 end
 
-
-
 function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
-# [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
-# LAMBDA = k1.^2 + k2.^2 + 0.004
-# K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
-# hsq = K * LAMBDA.^(-0.25)
+    # [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
+    # LAMBDA = k1.^2 + k2.^2 + 0.004
+    # K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
+    # hsq = K * LAMBDA.^(-0.25)
     # triangles = triangles'
     # vertices = vertices'
     # normals = normals'
