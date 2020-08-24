@@ -172,9 +172,9 @@ end
 function to_local(r::Array{Float64,1},normal::Array{Float64,1})
     # rotate a vector to local coordinate system
     # with z axis along a normal
-    cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
+    cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2)
     cost = normal[3]
-    sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
+    sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2)
     sint = sqrt( 1 - normal[3]^2 )
 
     A = [cosf  -sinf  0;
@@ -495,7 +495,7 @@ function project_on_given_paraboloid(CDE::Array{Float64,1},normal::Array{Float64
     # projects a point r0 on the paraboloid fitted around point at r
     # z = Cx^2 + D*x*y + E*y^2
     r0 = to_local(r0 - r, normal)
-    
+
     f(x::Array{Float64,1}) = (x[1]-r0[1])^2 + (x[2]-r0[2])^2 +
             (CDE[1]*x[1]^2 + CDE[2]*x[1]*x[2] + CDE[3]*x[2]^2 - r0[3])^2
 

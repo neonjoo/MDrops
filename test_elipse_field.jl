@@ -31,8 +31,8 @@ function field_theor(a, b, c, mu, H0)
 end
 
 
-#points_csv= CSV.read("./meshes/points_ellipse_manyN.csv", header=0)
-#faces_csv = CSV.read("./meshes/faces_ellipse_manyN.csv", header=0)
+#points_csv= CSV.read("./meshes/points_ellipse_fewN.csv", header=0)
+#faces_csv = CSV.read("./meshes/faces_ellipse_fewN.csv", header=0)
 
 println("Loaded mesh")
 
@@ -40,15 +40,18 @@ println("Loaded mesh")
 # faces = convert(Array, faces_csv)
 # points = Array{Float64}(points')
 # faces = Array{Int64}(faces')
+@load "./meshes/points_critical_hyst_2_21.jld2"
+@load "./meshes/faces_critical_hyst_2_21.jld2"
 
-points, faces = expand_icosamesh(R=1, depth=2)
-points = Array{Float64}(points)
-faces = Array{Int64}(faces)
+#points, faces = expand_icosamesh(R=1, depth=2)
+points = Array{Float64}(points')
+faces = Array{Int64}(faces')
 normals = Normals(points, faces)
 
 H0 = [0., 0., 1.]
 a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
-a,b,c = 1, 1, 1
+#println(a, b, c)
+#a,b,c = 1, 1, 2.21
 mu = 2
 mu0 = 4*pi*10e-7
 H0 = [0,0,1]
@@ -64,7 +67,7 @@ end
 
 psi = PotentialSimple(points, faces, mu, H0; normals = normals)
 Ht = HtField(points, faces, psi, normals)
-Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
+Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = tnormals)
 Hn = normals .* Hn_norms'
 
 H_num = Ht+Hn
@@ -79,8 +82,8 @@ ax = fig[:gca](projection="3d")
 #(vnx, vny, vnz) = [velocities[i,:] for i in 1:3]
 ax[:scatter](x,y,z, s=2,color="k")
 H_num = H_gauss
-ax[:quiver](x,y,z,H_num[1],H_num[2],H_num[3], length=1, arrow_length_ratio=0.5, color="black")
-ax[:quiver](x,y,z,H_teor[1],H_teor[2],H_teor[3], length=3000, arrow_length_ratio=0.5, color="red")
+#ax[:quiver](x,y,z,H_num[1],H_num[2],H_num[3], length=1, arrow_length_ratio=0.5, color="black")
+#ax[:quiver](x,y,z,H_teor[1],H_teor[2],H_teor[3], length=3000, arrow_length_ratio=0.5, color="red")
 ax[:set_xlim](-2,2)
 ax[:set_ylim](-2,2)
 ax[:set_zlim](-2,2)
