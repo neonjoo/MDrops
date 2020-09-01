@@ -530,7 +530,7 @@ function quadropole_potential(point::Array{Float64})
                  scalar_magnetic_potential([x, y, z], M, 0., [0.5, 1.], [-0.5, 0.], [-z_lim/2, z_lim/2])
 end
 
-function make_L_sing(points, faces, normals; gaussorder=5)
+function make_L_sing(points, faces, normals; gaussorder=3)
     deltaS = make_dS(points,faces)
     N = size(points, 2)
     L = zeros(Float64, N)
@@ -594,7 +594,7 @@ function make_L_sing(points, faces, normals; gaussorder=5)
     return -L # implement the minus in the end. For a sphere L=-1 for all points
 end
 
-function make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=5)
+function make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=3)
     # calculate the jump in the normal H field on drop surface
     # from D. Das and D. Saintillan "Electrohydrodynamics of viscous drops in strong electric fields: numerical simulations"
     alpha = mu
@@ -628,4 +628,274 @@ function make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=5)
     deltaH_normal = (L - F_reg) \ H
 
     return deltaH_normal'
+end
+
+function make_H_tangential(points, faces, normals, CDE, mu, H0, deltaH_normal; gaussorder = 3)
+    # return the magnitude of the tangential magnetic field on the droplet surface
+    # we use curved elements for singular triangles
+    N = size(points, 2)
+    Ht = zeros(3, N) # 3xN array
+    deltaS = make_dS(points,faces)
+
+    dHn = deltaH_normal
+
+    for ykey in 1:N
+        for i in 1:size(faces, 2)
+            function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [n1 n2 n3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                n = B * zeta_xi_eta
+                return n/norm(n)
+            end
+
+            function make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3) # delta normal field linear interpolation
+                A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+                B = [dHn1 dHn2 dHn3] # matrix of vertex normals
+
+                zeta_xi_eta = A \ x # find local triangle parameters
+
+                deltaHn = dot(B, zeta_xi_eta)
+                return deltaHn
+            end
+
+            function make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3; y=points[:,ykey],ny=normals[:,ykey])
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+                r = y - x
+                dHnx = make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3)
+                temp = dHnx * ny - dHn[ykey] * nx
+                Ht_func = cross(temp, r) / norm(r)^3
+
+                return Ht_func/(4pi)
+            end
+
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1 = points[:,faces[1,i]]
+                x2 = points[:,faces[2,i]]
+                x3 = points[:,faces[3,i]]
+
+                n1, dHn1 = normals[:,faces[1,i]], dHn[faces[1,i]]
+                n2, dHn2 = normals[:,faces[2,i]], dHn[faces[2,i]]
+                n3, dHn3 = normals[:,faces[3,i]], dHn[faces[3,i]]
+
+                Ht[:, ykey] += gauss_nonsingular(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,gaussorder)
+            else # if is singular triangle
+                # arrange labels so that singularity is on x1
+                # (singul_ind + n - 1) % 3 + 1 shifts index by n
+                singul_ind = findfirst(singul_ind->singul_ind==ykey,faces[:,i])
+                ind2, ind3 = (singul_ind) % 3 + 1, (singul_ind + 1) % 3 + 1
+
+                x1, x2, x3 = points[:,faces[singul_ind,i]], points[:,faces[ind2,i]], points[:,faces[ind3,i]]
+
+                n1, dHn1 = normals[:,faces[singul_ind,i]], dHn[faces[singul_ind,i]]
+                n2, dHn2 = normals[:,faces[ind2,i]], dHn[faces[ind2,i]]
+                n3, dHn3 = normals[:,faces[ind3,i]], dHn[faces[ind3,i]]
+                Ht[:,ykey] += gauss_curved(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,n1,CDE[:,ykey],gaussorder)
+
+            end # end if singular
+
+        end # end i for
+
+        Ht[:, ykey] += cross(normals[:, ykey], H0)
+    end # end ykey for
+
+    Ht_norms2 = sum(Ht.^2, dims=1)
+    Ht_norms = sqrt.(Ht_norms2)
+
+    return Ht_norms
+end
+
+function make_H_normal(deltaH_normal,mu)
+    return deltaH_normal / (mu-1)
+end
+
+function PotentialSimple(points,faces,normals,mu,H0;regularize=true)
+    # return the magnetic potential psi on the surface of teh drop
+
+    hmag = mu
+    A = zeros(Float64,size(points,2),size(points,2))
+
+    vareas = zeros(Float64,size(points,2))
+    for i in 1:size(faces,2)
+        v1,v2,v3 = faces[:,i]
+        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1]))/2
+        vareas[v1] += area/3
+        vareas[v2] += area/3
+        vareas[v3] += area/3
+    end
+
+    for xkey in 1:size(points,2)
+
+        x = points[:,xkey]
+        nx = normals[:,xkey]
+
+        for ykey in 1:size(points,2)
+            if xkey==ykey
+                continue
+            end
+            y = points[:,ykey]
+            ny = normals[:,ykey]
+
+            A[ykey,xkey] = dot(y-x,ny)/norm(y-x)^3 * vareas[ykey]
+        end
+    end
+
+    B = zeros(Float64,size(points,2))
+    for xkey in 1:size(points,2)
+        B[xkey] = 2*dot(H0,points[:,xkey])/(hmag+1)
+    end
+
+    if regularize==true
+        A = A'
+        reg_A = A - Diagonal(Float64[sum(A[i,:]) for i in 1:size(A,2)])
+        psi = (I * (1- (hmag-1)/(hmag+1)) - 1/2/pi * (hmag-1)/(hmag+1) * reg_A) \ B
+    else
+        A = A*(hmag-1)/(hmag+1)/2/pi
+        A = A'
+        psi = (I - A)\B
+    end
+
+    return psi
+end
+
+function HField(points,faces,psi)
+
+    H = Array{Float64}(undef,size(points)...)
+    for xkey in 1:size(points,2)
+
+        x = points[:,xkey]
+        psix = psi[xkey]
+        distances = Float64[]
+        dphi = Float64[]
+
+        for ykey in NeighborVertices(xkey,faces)
+            y = points[:,ykey]
+            distances = [distances; y-x]
+            dphi = [dphi; psi[ykey]-psix]
+        end
+        A, B = distances, dphi
+        A = transpose(reshape(A,3,div(length(A),3))) ### This looks unecesarry
+
+        # linear least squares
+        H[:,xkey] = inv(transpose(A)*A)*transpose(A)*B
+    end
+    return H
+end
+
+function HtField(points, faces, psi, normals)
+    # return the tangential component of the magnetic field on the droplet surface
+    # returns a vector
+    Ht = Array{Float64}(undef,3,size(points,2))
+    H = HField(points,faces,psi)
+
+    for xkey in 1:size(points,2)
+        nx = normals[:,xkey]
+        P = I - nx*nx'
+        Ht[:,xkey] = P*H[:,xkey]
+    end
+
+    return Ht
+end
+
+function NormalFieldCurrent(points,faces,normals,Ht,mu,H0; eps=0.0001)
+    # return normal component of magnetic field on the surface of the droplet
+
+    hmag = mu
+
+    for xkey in 1:size(points,2)
+        nx = normals[:,xkey]
+        #Ht[:,xkey] = (eye(3) - nx*nx')*Ht[:,xkey]
+    end
+
+    vareas = zeros(Float64,size(points,2))
+    for i in 1:size(faces,2)
+        v1,v2,v3 = faces[:,i]
+        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1])) /2
+        vareas[v1] += area/3
+        vareas[v2] += area/3
+        vareas[v3] += area/3
+    end
+
+
+    function qs(xi,eta,v1,v2,v3,x,nx,Htx)
+        y = (1 - xi - eta)*points[:,v1] + xi*points[:,v2] + eta*points[:,v3]
+        Hty = (1 - xi - eta)*Ht[:,v1] + xi*Ht[:,v2] + eta*Ht[:,v3]
+        ny =  (1 - xi - eta)*normals[:,v1] + xi*normals[:,v2] + eta*normals[:,v3]
+        s = - dot(nx,cross(Hty - Htx,cross(ny,-(y-x)/norm(y-x)^2)))
+    end
+
+    NP = 10
+    tt, ww = gausslegendre(NP)
+
+    function strquad(q::Function,x1,x2,x3)
+
+        B = dot(x3-x1,x2-x1)/norm(x2-x1)^2
+        C = norm(x3-x1)^2/norm(x2-x1)^2
+        hS = norm(cross(x2-x1,x3-x1))
+
+        s = 0
+        for i in 1:NP
+            Chi = pi/4*(1 + tt[i])
+
+            R = 1/(cos(Chi) + sin(Chi))
+            si = 0
+            for j in 1:NP
+                rho = R/2*(1 + tt[j])
+                si += q(rho*cos(Chi),rho*sin(Chi))*ww[j]
+            end
+
+            s += si*R/2 / sqrt(cos(Chi)^2 + B*sin(2*Chi) + C*sin(Chi)^2) * ww[i]
+        end
+        s *= pi/4
+
+        return s*hS/norm(x2 - x1)
+    end
+
+    Hn = Array{Float64}(undef,size(points,2))
+
+    for xkey in 1:size(points,2)
+
+        nx = normals[:,xkey]
+        x = points[:,xkey] + eps*nx
+        Htx = Ht[:,xkey]
+
+        s = 0
+        for ykey in 1:size(points,2)
+            !(xkey==ykey) || continue
+            y = points[:,ykey]
+            ny = normals[:,ykey]
+            Hty = Ht[:,ykey]
+
+            #s += dot(nx,-(Hty-Htx)*dot((y-x)/norm(y-x)^3,ny)) * vareas[ykey]
+            s += dot(nx,-(Hty-Htx)*dot((y-x)/norm(y-x)^3,ny)) * vareas[ykey]
+            s += -dot(nx,cross(Hty-Htx,cross(ny,-(y-x)/norm(y-x)^3))) * vareas[ykey]
+            #s += dot(nx,cross(cross(ny,),-(y-x)/norm(y-x)^3)) * vareas[ykey]
+        end
+
+        ### Making a proper hole
+        for (v2,v3) in DoubleVertexVRing(xkey,faces)
+            area = norm(cross(points[:,v2]-x,points[:,v3]-x))/2
+
+            ny = normals[:,v2]
+            y = points[:,v2]
+            s -= -dot(nx,cross(Ht[:,v2]-Htx,cross(ny,-(y-x)/norm(y-x)^3))) * area/3
+
+            ny = normals[:,v3]
+            y = points[:,v3]
+            s -= -dot(nx,cross(Ht[:,v3]-Htx,cross(ny,-(y-x)/norm(y-x)^3))) * area/3
+
+            ### Singular triangle integration
+
+            #s += strquad((xi,eta) -> qs(xi,eta,xkey,v2,v3,x,nx,Htx),x,points[:,v2],points[:,v3],abstol=abs(s/100))[1]
+            s += strquad((xi,eta) -> qs(xi,eta,xkey,v2,v3,x,nx,Htx),x,points[:,v2],points[:,v3])
+        end
+
+        #println("xkey is $xkey")
+
+        Hn[xkey] = dot(H0,nx)/hmag + 1/4/pi * (1-hmag)/hmag * s
+    end
+
+    return Hn
 end

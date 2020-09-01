@@ -144,7 +144,7 @@ function hquad_weaksingular_vec(q::Function,r1,r2,r3)
     return intval
 end
 
-function gauss_flat_local_scal(f::Function,r1,r2,r3,gaussorder)
+function gauss_flat_pol_vec(f::Function,r1,r2,r3,gaussorder)
     # requires: using FastGaussQuadrature
     # Gaussian integral over a flat triangle with vertices r1,r2,r3
     # integral of f(r), could be 1/r singular
@@ -190,7 +190,7 @@ function gauss_flat_local_scal(f::Function,r1,r2,r3,gaussorder)
         return to_global(r_loc,n_triang) + r1
     end
 
-    intval = 0.
+    intval = [0.,0.,0.]
 
     for i = 1:length(v)
         theta = make_theta(v[i], theta2, theta3)
@@ -205,6 +205,76 @@ function gauss_flat_local_scal(f::Function,r1,r2,r3,gaussorder)
 
     if theta2>theta3 # change of sign if integration limits were reversed
         intval *= -1
+    end
+
+    return intval
+end
+
+function gauss_curved_pol_vec(f::Function,r1,r2,r3,n1,CDE,gaussorder)
+    # requires: using FastGaussQuadrature
+    # gaussian integral over a "curved" triangle that is described with a paraboloid
+    # with an origin at r1 in the local coordinates of r1 described as:
+    # z = C * x^2 + D * x * y + E*y^2
+    # z is in the direction of normal at r1: n1
+    # integral of f(r), there can be a 1/r singularity at r1
+    r2 = project_on_given_paraboloid(CDE, n1, r2, r1)
+    r3 = project_on_given_paraboloid(CDE, n1, r3, r1)
+    r1_loc, r2_loc, r3_loc = r1-r1, r2-r1, r3-r1
+    r2_loc, r3_loc = to_local(r2_loc,n1), to_local(r3_loc,n1)
+
+    x2, x3 = r2_loc[1], r3_loc[1] + 1e-15
+    y2, y3 = r2_loc[2], r3_loc[2]
+
+    # angles are from -pi to pi, masured from the x axis
+    theta2, theta3 = atan(y2,x2), atan(y3,x3)
+
+
+    # effectively change integration limits so that theta sweeps only the triangle
+    if (theta3 - theta2) > pi
+        theta2 += 2pi
+    end
+
+    u, wu = gausslegendre(gaussorder) # u from -1 to 1
+    v, wv = u, wu # for convenient notation
+
+
+    function make_theta(v, theta2, theta3)
+        return (v + 1)/2 * (theta3 - theta2) + theta2
+    end
+
+    function make_rho_m(theta, x2, x3, y2, y3)
+        return (y2 - x2 * (y3-y2)/(x3-x2)) / (sin(theta) - cos(theta) * (y3-y2)/(x3-x2))
+    end
+
+    function make_rho(u, rho_m)
+        return (u + 1)/2 * rho_m
+    end
+
+    function make_r(rho,theta, n1, r1, CDE)
+        x = rho * cos(theta)
+        y = rho * sin(theta)
+        z = CDE[1]*x^2 + CDE[2]*x*y + CDE[3]*y^2
+
+        r_loc = [x, y, z]
+
+        return to_global(r_loc,n1) + r1
+    end
+
+    intval = [0.,0.,0.]
+
+    for i = 1:length(v)
+        theta = make_theta(v[i], theta2, theta3)
+        rho_m = make_rho_m(theta, x2, x3, y2, y3)
+        for k = 1:length(u)
+            rho = make_rho(u[k], rho_m)
+            x, y = rho*cos(theta), rho*sin(theta)
+            dA = sqrt( (2*CDE[1]*x + CDE[2]*y)^2 + (CDE[2]*x + 2*CDE[3]*y)^2 + 1)
+            intval += wv[i]*(theta3 - theta2)/2 *
+                    wu[k]*f( make_r(rho,theta, n1, r1, CDE) ) * rho * rho_m/2 * dA
+        end
+    end
+    if theta2 > theta3 # change of sign if integration limits are reversed
+        return -intval
     end
 
     return intval

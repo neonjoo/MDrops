@@ -1,3 +1,35 @@
+function Normals(points, faces)
+    # return normals at vertices as weighted average of surrounding triangle normals
+    # triangle angles are the weights
+    all_normals = zeros(3, size(points,2))
+    for i in 1:size(points)[2]
+        mask = findall(x-> x == i, faces)
+        neighbors = zeros(Int64, 3, length(mask))
+        num_neighbors = length(mask)
+        for n in 1:num_neighbors
+            neighbors[:, n] = faces[:,mask[n][2]]
+        end
+        normal_i = zeros(3, 1)
+        for j in 1:num_neighbors
+            all_i = findall(neighbors .== i)
+            v1 = neighbors[all_i[j][1], all_i[j][2]]
+            v2 = neighbors[(all_i[j][1]) % 3 + 1, all_i[j][2]]
+            v3 = neighbors[(all_i[j][1] + 1) % 3 + 1, all_i[j][2]]
+            #println("v1 = $(norm(v1)), v2 = $(norm(v2)), v3 = $(norm(v3))")
+            vec1 = points[:, v3] - points[:, v1]
+            vec2 = points[:, v2] - points[:, v1]
+            #println(norm(vec1), norm(vec2))
+            normal_j = cross(vec1, vec2)
+            angle_j = acos(dot(vec1, vec2) / norm(vec1) / norm(vec2))
+
+            normal_i += angle_j * normal_j
+        end
+        normal_i = normalize(normal_i[:,1])
+        all_normals[:, i] = normal_i
+    end
+    return all_normals
+end
+
 function make_icosamesh(;R=1)
     vertices = Array{Float64}(undef, (12,3))
     triangles = Array{Int64}(undef, (20,3))
