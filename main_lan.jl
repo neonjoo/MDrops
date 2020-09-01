@@ -18,7 +18,7 @@ SG = SurfaceGeometry
 #include("./SurfaceGeometry/dt20L/src/Utils.jl")
 
 include("./stabilization.jl")
-include("./functions.jl")
+#include("./functions.jl")
 include("./mesh_functions.jl")
 include("./physics_functions.jl")
 
@@ -40,9 +40,9 @@ faces = Array{Int64}(faces)
 
 println("Loaded mesh; nodes = $(size(points,2))")
 
-continue_sim = true
+continue_sim = false
 
-dataname = "hysteresis_1_return3_1"
+dataname = "new_age_1"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -79,7 +79,6 @@ if continue_sim
     @load "$datadir/$last_file" data
 
     global points, faces, t, H0, Bm, v0max = data[1], data[2], data[3], data[4], data[5], data[6]
-    Bm = 3.2
     global last_step = parse(Int32, last_file[5:9])
     println("last step: $last_step")
     normals = Normals(points, faces)
@@ -88,9 +87,10 @@ end
 if !isdir("$datadir")
     mkdir("$datadir")
     println("Created new dir: $datadir")
-end
-open("$datadir/_params.txt", "w") do file
+
+    open("$datadir/aa_params.txt", "w") do file
     write(file, "H0=$H0\nmu=$mu\nBm=$Bm\nlambda=$lambda\nsteps=$steps\ndt=$dt\nw=$w\n")
+    cp("main_lan.jl", "$datadir/aa_source_code.jl")
 end
 
 
