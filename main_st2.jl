@@ -1,12 +1,18 @@
+using Pkg
+pkg"activate ."
+pkg"resolve"
+
+
 using StatsBase
 using LinearAlgebra
 using FastGaussQuadrature
 #using Optim
 
+#include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
+include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./mesh_functions.jl")
 include("./physics_functions.jl")
 include("./mathematics_functions.jl")
-#include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
 
 
 ## making the mesh
