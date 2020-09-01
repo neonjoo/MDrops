@@ -265,6 +265,7 @@ function gauss_curved_pol_vec(f::Function,r1,r2,r3,n1,CDE,gaussorder)
     for i = 1:length(v)
         theta = make_theta(v[i], theta2, theta3)
         rho_m = make_rho_m(theta, x2, x3, y2, y3)
+
         for k = 1:length(u)
             rho = make_rho(u[k], rho_m)
             x, y = rho*cos(theta), rho*sin(theta)
