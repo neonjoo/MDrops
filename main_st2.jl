@@ -1,11 +1,13 @@
 using StatsBase
 using LinearAlgebra
 using FastGaussQuadrature
-#using Optim
 
 include("./mesh_functions.jl")
 include("./physics_functions.jl")
 include("./mathematics_functions.jl")
+#include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
+include("./SurfaceGeometry/dt20L/src/iterators.jl")
+
 #include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
 
 

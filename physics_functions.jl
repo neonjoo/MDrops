@@ -1,4 +1,4 @@
-include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
+#include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
 
 function make_magvelocities_old(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
     # lambda = int viscosity / ext viscosity
