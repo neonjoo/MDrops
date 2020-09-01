@@ -1281,3 +1281,13 @@ function make_enright_velocities(points, t)
 
     return Array{Float64}(transpose(v))
 end
+
+function NeighborVertices(vertex, faces)
+    mask = findall(x-> x == vertex, faces)
+    neighbors = zeros(Int64, 3, length(mask))
+    num_neighbors = length(mask)
+    for n in 1:num_neighbors
+        neighbors[:, n] = faces[:,mask[n][2]]
+    end
+    return setdiff(neighbors, vertex)
+end

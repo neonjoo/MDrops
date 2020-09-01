@@ -1,3 +1,5 @@
+include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
+
 function make_magvelocities_old(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
     # lambda = int viscosity / ext viscosity
     # Returns vertex velocities from the Stokes flow integral equations
@@ -801,6 +803,7 @@ end
 
 function NormalFieldCurrent(points,faces,normals,Ht,mu,H0; eps=0.0001)
     # return normal component of magnetic field on the surface of the droplet
+    # returns a scalar
 
     hmag = mu
 
