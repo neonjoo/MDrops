@@ -473,9 +473,9 @@ function make_magvelocities_2(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
     return velocities
 end
 
-
 function scalar_magnetic_potential(r::Array{Float64}, M::Float64, angle::Float64,  xlims::Array{Float64}, ylims::Array{Float64}, zlims::Array{Float64})
     # Scalar magnetic potential of a block magnet, bounded by lims (according to https://contattafiles.s3.us-west-1.amazonaws.com/tnt41611/uDDJpl0uRpMsYLf/Ravaud_Lemarquand_2009_Magnetic%20field%20produced%20by%20a%20parallelepipedic%20magnet%20of%20various%20and%20uniform.pdf)
+    # R. Ravaud and G. Lemarquand "MAGNETIC FIELD PRODUCED BY A PARALLELEPIPEDIC MAGNET OF VARIOUS AND UNIFORM POLARIZATION"
     # M - magnetization, angle wrt to X axis in XY plane
 
     function dist(i::Int64, j::Int64, k::Int64, r::Array{Float64}, xlims::Array{Float64}, ylims::Array{Float64}, zlims::Array{Float64})
@@ -530,35 +530,102 @@ function quadropole_potential(point::Array{Float64})
                  scalar_magnetic_potential([x, y, z], M, 0., [0.5, 1.], [-0.5, 0.], [-z_lim/2, z_lim/2])
 end
 
-# ff = []
-# yy = -4.0:0.05:4.0
-# for i in yy
-#     push!(ff, scalar_magnetic_potential2([0., i, 0.], 2.0, pi/2, [-0.5, 0.5], [-0.5, 0.5], [-0.5, 0.5]))
-# end
-#
-# p.plot(yy[1:end-1], -diff(ff))
-#
-# x = -0.5:0.02:1.0
-# y = -0.5:0.02:1.0
-# f(x, y) = begin
-#         scalar_magnetic_potential2([x, y, 0.], 20.0, pi/2, [-0.5, 0.], [0.5, 1.], [-1., 1.]) +
-#             scalar_magnetic_potential2([x, y, 0.], 20.0, -pi/2, [0., 0.5], [0.5, 1.], [-1., 1.]) +
-#             scalar_magnetic_potential2([x, y, 0.], 20.0, pi/2, [-0.5, 0.], [-1., -0.5], [-1., 1.]) +
-#             scalar_magnetic_potential2([x, y, 0.], 20.0, -pi/2, [0., 0.5], [-1., -0.5], [-1., 1.])
-# end
-#
-#
-# ff = []
-# yy = -2.0:0.05:2.0
-# for i in yy
-#     push!(ff, f(i, 0.))
-# end
-#
-# p.plot(yy[1:end-1], -diff(ff))
-#
-# X = repeat(reshape(x, 1, :), length(y), 1)
-# Y = repeat(y, 1, length(x))
-# Z = map(quadropole_potential, X, Y)
-# p1 = p.contour(x, y, f, levels=40, fill=true)
-# p2 = p.contour(x, y, Z, levels=100, fill=true)
-# p.plot(p1, p2)
+function make_L_sing(points, faces, normals; gaussorder=5)
+    deltaS = make_dS(points,faces)
+    N = size(points, 2)
+    L = zeros(Float64, N)
+
+    function make_n(x,x1,x2,x3,n1,n2,n3) # normal linear interpolation
+        A = [x1 x2 x3] # matrix of vertex radiusvecotrs
+        B = [n1 n2 n3] # matrix of vertex normals
+
+        zeta_xi_eta = A \ x # find local triangle parameters
+
+        n = B * zeta_xi_eta
+        return n/norm(n)
+    end
+
+
+    for ykey in 1:N
+        function make_L(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey],ny=normals[:,ykey])
+            nx = make_n(x,x1,x2,x3,n1,n2,n3)
+            r = y - x
+
+            return dot(r, nx-ny) / norm(r)^3 / 4pi
+        end
+
+        function make_L_times_norm_r(x,x1,x2,x3,n1,n2,n3; y=points[:,ykey], ny=normals[:,ykey])
+            nx = make_n(x,x1,x2,x3,n1,n2,n3)
+            r = y - x
+
+            return dot(r, nx-ny) / norm(r)^2 / 4pi
+        end
+
+        ny = normals[:, ykey]
+        ry = points[:, ykey]
+
+        for i in 1:size(faces, 2)
+            #println("triangle: $i")
+            if !(ykey in faces[:,i]) # if not singular triangle
+                x1, x2, x3 = [points[:, faces[j,i]] for j in 1:3]
+                n1, n2, n3 = [normals[:, faces[j,i]] for j in 1:3]
+
+                L[ykey] += gauss_nonsingular(x->make_L(x,x1,x2,x3,n1,n2,n3), x1,x2,x3,gaussorder)
+                #println(x1, x2, x3)
+            else # if is singular triangle
+                singul_ind = findfirst(ind->ind==ykey,faces[:,i])
+
+                x1 = points[:,faces[singul_ind,i]]
+                x2 = points[:,faces[(singul_ind) % 3 + 1,i]]
+                x3 = points[:,faces[(singul_ind + 1) % 3 + 1,i]]
+
+                n1 = normals[:,faces[singul_ind,i]]
+                n2 = normals[:,faces[(singul_ind) % 3 + 1,i]]
+                n3 = normals[:,faces[(singul_ind + 1) % 3 + 1,i]]
+                #println("L = $L,eeee $(L[ykey])")
+                #L[ykey] +=
+                L[ykey] += gauss_weaksingular(x->make_L_times_norm_r(x,x1,x2,x3,n1,n2,n3), x1,x2,x3,gaussorder)
+                #println("$Ltemp, $(L[ykey]), $ykey")
+            end
+
+        end
+    end
+
+    return -L # implement the minus in the end. For a sphere L=-1 for all points
+end
+
+function make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=5)
+    # calculate the jump in the normal H field on drop surface
+    # from D. Das and D. Saintillan "Electrohydrodynamics of viscous drops in strong electric fields: numerical simulations"
+    alpha = mu
+    deltaS = make_dS(points,faces)
+    N = size(points, 2)
+    L = make_L_sing(points, faces, normals; gaussorder=gaussorder)
+    L = Diagonal(alpha/(alpha-1) .- L) # alpha term should be positive
+    F = zeros(Float64, N, N) # integral equation matrix
+    H = zeros(Float64, N)
+
+    for ykey in 1:N
+        ny = normals[:, ykey]
+        ry = points[:, ykey]
+
+        for xkey in 1:N
+            if xkey == ykey
+                continue
+            end
+            nx = normals[:, xkey]
+            rx = points[:, xkey]
+            F[ykey, xkey] +=  dot(ny, ry-rx) / norm(ry-rx)^3 * deltaS[xkey] / (4pi)
+
+        end
+    end
+
+    for ykey in 1:N
+        H[ykey] = dot(H0, normals[:, ykey]) # no minus
+    end
+
+    F_reg = F - Diagonal([sum(F[i, :]) for i in 1:N])
+    deltaH_normal = (L - F_reg) \ H
+
+    return deltaH_normal'
+end

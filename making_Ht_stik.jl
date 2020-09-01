@@ -930,3 +930,11 @@ ax[:set_xlabel]("x axis")
 ax[:set_ylabel]("y axis")
 ax[:set_zlabel]("z axis")
 fig[:show]()
+
+
+
+
+@time Ht_fp = make_H_tang_flatpolar(points, faces, normals, deltaHn, H0; gaussorder = 5)
+@time Ht = make_H_tang(points, faces, normals, deltaHn, H0; gaussorder = 5)
+@time Ht_erd = HtField(points, faces, psi, normals)
+Ht_erd = sqrt.(sum(Ht_erd .* Ht_erd, dims = 1))'

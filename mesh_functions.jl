@@ -669,8 +669,6 @@ function make_Cdeltas(points, faces)
     return Cdeltas
 end
 
-
-
 function flip_edges(faces, connectivity, vertices)
     # flip edges to improve mesh, updates "faces" and "connectivity"
 
@@ -824,17 +822,15 @@ function find_circumcenter(x1, x2, x3)
 
 end
 
-
-
 function passive_stab(normals,triangles, vertices, vvecs, epsilon, maxIters)
-# [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
-# LAMBDA = k1.^2 + k2.^2 + 0.004
-# K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
-# hsq = K * LAMBDA.^(-0.25)
-    # triangles = triangles'
-    # vertices = vertices'
-    # normals = normals'
-    # vvecs = vvecs'
+    # [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
+    # LAMBDA = k1.^2 + k2.^2 + 0.004
+    # K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
+    # hsq = K * LAMBDA.^(-0.25)
+        # triangles = triangles'
+        # vertices = vertices'
+        # normals = normals'
+        # vvecs = vvecs'
     println("passive stabbing")
     # first gradient descent
     f = make_tanggradF(normals,triangles, vertices, vvecs)
