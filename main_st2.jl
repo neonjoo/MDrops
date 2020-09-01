@@ -1,3 +1,5 @@
+cd("/home/andris/MDrops/")
+
 using JLD2
 using StatsBase
 using LinearAlgebra
@@ -30,7 +32,7 @@ normals = Normals(points, faces)
 
 ## setting simulation parameters
 H0 = [0., 0., 1.]
-mu = 30.
+mu = 10.
 lambda = 10.
 Bm = 0.
 
@@ -41,7 +43,8 @@ Ht = sqrt.(sum(Ht_vec.^2,dims=1))'
 Hn = NormalFieldCurrent(points, faces, normals, Ht_vec, mu, H0) # a scalar
 
 dHn = make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=3)
-Ht_aa = make_H_tangential(points, faces, normals, CDE, mu, H0, dHn; gaussorder = 3)'
+dHn = make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=3)
+Ht_aa = make_H_tangential(points, faces, normals, CDE, H0, dHn; gaussorder = 3)'
 Hn_aa = make_H_normal(dHn,mu)'
 
 ## testing against theoretical values
@@ -78,6 +81,11 @@ for ykey in 1:size(points,2)
     Ht_teor[ykey] = norm(cross(Hteor,normals[:,ykey]))
 end
 
+## maggic
+dHn_teor = (mu-1)*Hn_teor'
+Ht_aa_teor = make_H_tangential(points, faces, normals, CDE, H0, dHn_teor; gaussorder = 3)'
+Ht_aa_teor_nsg = make_H_tangential(points, faces, normals, CDE, H0, dHn_teor; gaussorder = 3)'
+Ht_err = (Ht_aa_teor - Ht_teor) ./ Ht_teor
 ## plot the results
 using Plots
 plot(Hn_teor,label = "teor")
@@ -86,4 +94,6 @@ plot!(Hn_aa,label = "new")
 
 plot(Ht_teor,label = "teor")
 plot!(Ht,label = "old")
-plot!(Ht_aa,label = "new")
+#plot!(Ht_aa,label = "new")
+plot!(Ht_aa_teor,label = "new_teor")
+plot!(Ht_aa_teor_nsg, label = "nsg")

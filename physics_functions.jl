@@ -633,7 +633,7 @@ function make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=3)
     return deltaH_normal'
 end
 
-function make_H_tangential(points, faces, normals, CDE, mu, H0, deltaH_normal; gaussorder = 3)
+function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gaussorder = 3)
     # return the magnitude of the tangential magnetic field on the droplet surface
     # we use curved elements for singular triangles
     N = size(points, 2)
