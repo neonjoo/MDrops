@@ -349,5 +349,5 @@ normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 H0 = [0., 0., 1.]
 
 ht_elips5 = make_H_field(points, faces, normals, 2, H0, 5)
-ht_celips5 = make_H_field_curved(points, faces, normals, 2, H0, 5)
+ht_celips3_2node = make_H_field_curved(points, faces, normals, 2, H0, 5)
 hn_elips3 = make_deltaH_normal(points, faces, 2, H0)
