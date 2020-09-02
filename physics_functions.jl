@@ -654,6 +654,15 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
                 return n/norm(n)
             end
 
+            function make_n_analy(x,x1,x2,x3,n1,CDE)
+                x_p = project_on_given_paraboloid(CDE, n1, x, x1) # x_p is global
+                x_l = to_local(x_p - x1, n1)
+                n = [-2*CDE[1]*x_l[1] - CDE[2]*x_l[2],
+                    -CDE[2]*x_l[1] - 2*CDE[3]*x_l[2],
+                    1]
+                return n/norm(n)
+            end
+
             function make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3) # delta normal field linear interpolation
                 A = [x1 x2 x3] # matrix of vertex radiusvecotrs
                 B = [dHn1 dHn2 dHn3] # matrix of vertex normals
@@ -664,8 +673,8 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
                 return deltaHn
             end
 
-            function make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3; y=points[:,ykey],ny=normals[:,ykey])
-                nx = make_n(x,x1,x2,x3,n1,n2,n3)
+            function make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE; y=points[:,ykey],ny=normals[:,ykey])
+                nx = make_n_analy(x,x1,x2,x3,n1,CDE)
                 r = y - x
                 dHnx = make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3)
                 temp = dHnx * ny - dHn[ykey] * nx
@@ -683,7 +692,7 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
                 n2, dHn2 = normals[:,faces[2,i]], dHn[faces[2,i]]
                 n3, dHn3 = normals[:,faces[3,i]], dHn[faces[3,i]]
 
-                Ht[:, ykey] += gauss_nonsingular(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,gaussorder)
+                Ht[:, ykey] += gauss_nonsingular(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE[:,ykey]), x1,x2,x3,gaussorder)
                 #Ht[:, ykey] += gauss_curved_pol_vec(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,n1,CDE[:,faces[1,i]],gaussorder)
             else # if is singular triangle
                 # arrange labels so that singularity is on x1
@@ -696,7 +705,7 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
                 n1, dHn1 = normals[:,faces[singul_ind,i]], dHn[faces[singul_ind,i]]
                 n2, dHn2 = normals[:,faces[ind2,i]], dHn[faces[ind2,i]]
                 n3, dHn3 = normals[:,faces[ind3,i]], dHn[faces[ind3,i]]
-                Ht[:,ykey] += gauss_curved_pol_vec(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3), x1,x2,x3,n1,CDE[:,ykey],gaussorder)
+                Ht[:,ykey] += gauss_curved_pol_vec(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE[:,ykey]), x1,x2,x3,n1,CDE[:,ykey],gaussorder)
 
             end # end if singular
 

@@ -8,15 +8,10 @@ using JLD2
 #using Makie
 using StatsBase
 using Optim
-#using ElTopo
+using FastGaussQuadrature
 
 
-include("./SurfaceGeometry/dt20L/src/SurfaceGeometry.jl")
-SG = SurfaceGeometry
-#include("./SurfaceGeometry/dt20L/src/StabilisationMethods/stabilisationV2.jl")
-#include("./SurfaceGeometry/dt20L/src/Properties.jl")
-#include("./SurfaceGeometry/dt20L/src/Utils.jl")
-
+include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 #include("./functions.jl")
 include("./mesh_functions.jl")
@@ -42,11 +37,11 @@ println("Loaded mesh; nodes = $(size(points,2))")
 
 continue_sim = false
 
-dataname = "new_age_1"
+dataname = "new_rotating_fast_1"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
-mu = 30
+mu = 10
 
 # Bm_crit = 3.68423 pie mu=30
 Bm = 20 ################################################ zemāk iespējams loado citu
@@ -56,12 +51,12 @@ lambda = 7.6
 gamma = H0[3]^2 * R0 / Bm
 #gamma = 8.2 * 1e-4
 #gamma = 7.7 * 1e-4 # from fitted exp data with mu=34
-w = 0
+w = 100
 
 reset_vmax = true
 last_step = 0
 t = 0
-dt = 0.1
+dt = 0.05
 steps = 10000
 epsilon = 0.05
 normals = Normals(points, faces)
@@ -87,9 +82,9 @@ end
 if !isdir("$datadir")
     mkdir("$datadir")
     println("Created new dir: $datadir")
-
     open("$datadir/aa_params.txt", "w") do file
-    write(file, "H0=$H0\nmu=$mu\nBm=$Bm\nlambda=$lambda\nsteps=$steps\ndt=$dt\nw=$w\n")
+        write(file, "H0=$H0\nmu=$mu\nBm=$Bm\nlambda=$lambda\nsteps=$steps\ndt=$dt\nw=$w\n")
+    end
     cp("main_lan.jl", "$datadir/aa_source_code.jl")
 end
 
@@ -105,11 +100,11 @@ for i in 1:steps
     connectivity = make_connectivity(edges)
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
-    psi = PotentialSimple(points, faces, mu, H0; normals = normals)
+    psi = PotentialSimple(points, faces, normals, mu, H0)
     Ht = HtField(points, faces, psi, normals)
-    Hn_norms = NormalFieldCurrent(points, faces, Ht, mu, H0; normals = normals)
+    Hn_norms = NormalFieldCurrent(points, faces, normals, Ht, mu, H0)
     Hn = normals .* Hn_norms'
-    println("H = $(H0)")
+    #println("H = $(H0)")
     #mup = mu
     # magnitudes squared of the normal force
     Hn_2 = sum(Hn.^2, dims=1)
@@ -147,7 +142,7 @@ for i in 1:steps
     faces, connectivity, do_active = flip_edges(faces, connectivity, points)
 
 
-    if i % 20 == 0 || do_active
+    if i % 1 == 0 && i > 2#|| do_active
         if do_active
             #println("-------------------------------------------------- flipped at step $i")
             edges = make_edges(faces)
@@ -205,7 +200,7 @@ for i in 1:steps
         global reset_vmax
         reset_vmax = true
         global Bm
-        Bm -= 0.2
+        #Bm -= 0.2
         println("----- new Bm = $Bm")
         #break
    end
