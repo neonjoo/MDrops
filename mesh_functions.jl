@@ -182,20 +182,20 @@ function make_pc_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
         (
         C*sqrt(magN) + E*sqrt(magN) - C*D^2*x^2*sqrt(magN) + 4*C^2*E*x^2*sqrt(magN) -
         D^3*x*y*sqrt(magN) + 4*C*D*E*x*y*sqrt(magN) - D^2*E*y^2*sqrt(magN) + 4*C*E^2*y^2*sqrt(magN) +
-        0.5*sqrt(
+        0.5*sqrt(abs(
             4*(D^2 - 4*C*E)*(1 + 4*C^2*x^2 + 4*C*D*x*y + 4*D*E*x*y + 4*E^2*y^2 + D^2*(x^2 + y^2))^2 +
             4*(1 + (2*C*x + D*y)^2 + (D*x + 2*E*y)^2) * (E + 4*C^2*E*x^2 - D^3*x*y - D^2*E*y^2 + C*(1 - D^2*x^2 + 4*D*E*x*y + 4*E^2*y^2))^2
-            )
+            ))
         )
 
     k1 = -1/magN^2 *
         (
         C*sqrt(magN) + E*sqrt(magN) - C*D^2*x^2*sqrt(magN) + 4*C^2*E*x^2*sqrt(magN) -
         D^3*x*y*sqrt(magN) + 4*C*D*E*x*y*sqrt(magN) - D^2*E*y^2*sqrt(magN) + 4*C*E^2*y^2*sqrt(magN) -
-        0.5*sqrt(
+        0.5*sqrt(abs(
             4*(D^2 - 4*C*E)*(1 + 4*C^2*x^2 + 4*C*D*x*y + 4*D*E*x*y + 4*E^2*y^2 + D^2*(x^2 + y^2))^2 +
             4*(1 + (2*C*x + D*y)^2 + (D*x + 2*E*y)^2) * (E + 4*C^2*E*x^2 - D^3*x*y - D^2*E*y^2 + C*(1 - D^2*x^2 + 4*D*E*x*y + 4*E^2*y^2))^2
-            )
+            ))
         )
 
     return k1,k2
