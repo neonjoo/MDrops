@@ -153,22 +153,6 @@ for i in 1:steps
     println("---- t = $t, dt = $dt ------")
 
     points = points + velocities * dt
-    #H0 = [sin(w*t), 0., cos(w*t)]
-    do_active = false
-
-    faces, connectivity, do_active = flip_edges(faces, connectivity, points)
-
-
-    if i % 1 == 0 && i > 2#|| do_active
-        if do_active
-            #println("-------------------------------------------------- flipped at step $i")
-            edges = make_edges(faces)
-        end
-        println("-- doing active / step $i / flipped?: $do_active")
-        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
-        points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
-
-    end
 
     cutoff_crit = 0.55
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
@@ -187,6 +171,10 @@ for i in 1:steps
         points, faces = add_points(points, faces,normals, edges, CDE; cutoff_crit = 0.55)
         normals = Normals(points, faces)
         edges = make_edges(faces)
+        neighbor_faces = make_neighbor_faces(faces)
+        connectivity = make_connectivity(edges)
+        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+
         println("-----------------------------------")
         println("New V-E+F = ", size(points,2)-size(edges,2)+size(faces,2))
         println("New number of points: ", size(points,2))
@@ -194,6 +182,24 @@ for i in 1:steps
         println("New number of edges: ", size(edges,2))
         println("New normals pointing out? ", all(sum(normals .* points,dims=1).>0))
         println("-----------------------------------")
+    end
+
+
+    #H0 = [sin(w*t), 0., cos(w*t)]
+    do_active = false
+
+    faces, connectivity, do_active = flip_edges(faces, connectivity, points)
+
+
+    if i % 1 == 0 && i > 2#|| do_active
+        if do_active
+            #println("-------------------------------------------------- flipped at step $i")
+            edges = make_edges(faces)
+        end
+        println("-- doing active / step $i / flipped?: $do_active")
+        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+        points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
+
     end
 
     #dt = 0.1 * scale / max(sqrt(sum(Vvecs.*Vvecs,2)))
