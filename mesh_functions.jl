@@ -1346,6 +1346,7 @@ function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cut
     # mark also all the faces that have at least two nearby marked faces
     neighbors_marked = false
     while !neighbors_marked
+        # println("checking if many neighbors are marked")
         marked_faces_old = copy(marked_faces)
         for i = 1:size(faces,2)
             if marked_faces[i] == false
@@ -1357,7 +1358,9 @@ function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cut
                     end
                 end
                 if nearby_marked_faces > 1
-                    marked_faces[i] == true
+                    marked_faces[i] = true
+                    # println(marked_faces[i])
+                    # println(nearby_marked_faces," marked kaimiņi")
                 end
 
             end
@@ -1365,6 +1368,8 @@ function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cut
 
         if marked_faces_old == marked_faces
             neighbors_marked = true
+        else
+            println("marked new faces")
         end
     end # end while
 

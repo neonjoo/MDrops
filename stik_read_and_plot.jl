@@ -86,10 +86,6 @@ pygui(true)
 fig = figure(figsize=(7,7))
 ax = fig[:gca](projection="3d")
 
-(xn, yn, zn) = [new_points[i,:] for i in 1:3]
-
-ax[:scatter](xn,yn,zn, s=2,color="r")
-
 (x, y, z) = [points[i,:] for i in 1:3]
 
 ax[:scatter](x,y,z, s=2,color="k")
