@@ -42,7 +42,7 @@ include("./mathematics_functions.jl")
 
 # points = convert(Array, points_csv)
 # faces = convert(Array, faces_csv)
-points, faces = expand_icosamesh(R=1, depth=2)
+points, faces = expand_icosamesh(R=1, depth=4)
 
 #@load "./meshes/faces_critical_hyst_2_21.jld2" faces
 points = Array{Float64}(points)
@@ -53,14 +53,14 @@ println("Loaded mesh; nodes = $(size(points,2))")
 
 continue_sim = false
 
-dataname = "elongation_lamdba1_mu20"
+dataname = "elongation_Bm5_lamdba10_mu30_manymoreN_adaptive_dt"
 datadir = "/home/andris/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
 mu = 30.
 
 # Bm_crit = 3.68423 pie mu=30
-Bm = 4. ################################################ zemāk iespējams loado citu
+Bm = 5. ################################################ zemāk iespējams loado citu
 #R0 = 21.5 * 100/480 * 1e-4 # um to cm for cgs
 R0 = 1.
 lambda = 10.
@@ -73,7 +73,7 @@ reset_vmax = true
 last_step = 0
 t = 0
 dt = 0.05
-steps = 10000
+steps = 12000
 epsilon = 0.05
 normals = Normals(points, faces)
 
@@ -143,7 +143,7 @@ for i in 1:steps
     #passive stabilization
     #velocities = SG.stabilise!(velocities, points, faces, normals, zc)
 
-    #dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
+    dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
      #if dt < 0.2
     #     dt = 0.2
     # end
