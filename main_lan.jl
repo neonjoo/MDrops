@@ -9,13 +9,14 @@ using JLD2
 using StatsBase
 using Optim
 using FastGaussQuadrature
-
+using Distributed
 
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./stabilization.jl")
 #include("./functions.jl")
 include("./mesh_functions.jl")
 include("./physics_functions.jl")
+include("./sandbox_lang.jl")
 
 #points_csv= CSV.read("./meshes/points_critical_hyst_2_21.csv", header=0)
 #faces_csv = CSV.read("./meshes/faces_critical_hyst_2_21.csv", header=0)
@@ -26,7 +27,7 @@ include("./physics_functions.jl")
 
 # points = convert(Array, points_csv)
 # faces = convert(Array, faces_csv)
-points, faces = expand_icosamesh(R=1, depth=2)
+points, faces = expand_icosamesh(R=1, depth=3)
 
 #@load "./meshes/faces_critical_hyst_2_21.jld2" faces
 points = Array{Float64}(points)
@@ -35,16 +36,16 @@ faces = Array{Int64}(faces)
 
 println("Loaded mesh; nodes = $(size(points,2))")
 
-continue_sim = false
+continue_sim = true
 
-dataname = "new_rotating_fast_1"
+dataname = "new_rotating_fast_5"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
 mu = 10
 
 # Bm_crit = 3.68423 pie mu=30
-Bm = 20 ################################################ zemāk iespējams loado citu
+Bm = 50 ################################################ zemāk iespējams loado citu
 #R0 = 21.5 * 100/480 * 1e-4 # um to cm for cgs
 R0 = 1
 lambda = 7.6
@@ -56,9 +57,11 @@ w = 100
 reset_vmax = true
 last_step = 0
 t = 0
-dt = 0.05
+time_k = 0.05
+dt = 2pi / w * time_k
 steps = 10000
 epsilon = 0.05
+
 normals = Normals(points, faces)
 
 max_vs = zeros(3, steps)
@@ -88,7 +91,8 @@ if !isdir("$datadir")
     cp("main_lan.jl", "$datadir/aa_source_code.jl")
 end
 
-
+addprocs(3)
+println("nprocs: $(nprocs()), nworkers: $(nworkers())")
 
 
 for i in 1:steps
@@ -100,9 +104,9 @@ for i in 1:steps
     connectivity = make_connectivity(edges)
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
-    psi = PotentialSimple(points, faces, normals, mu, H0)
-    Ht = HtField(points, faces, psi, normals)
-    Hn_norms = NormalFieldCurrent(points, faces, normals, Ht, mu, H0)
+    psi = PotentialSimple_par(points, faces, normals, mu, H0)
+    Ht = HtField_par(points, faces, psi, normals)
+    Hn_norms = NormalFieldCurrent_par(points, faces, normals, Ht, mu, H0)
     Hn = normals .* Hn_norms'
     #println("H = $(H0)")
     #mup = mu
@@ -120,7 +124,7 @@ for i in 1:steps
 
     println("Bm = $Bm")
 
-    @time velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    @time velocities = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
     @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
 
     #@time velocities = make_enright_velocities(points, t)
@@ -136,13 +140,13 @@ for i in 1:steps
     println("---- t = $t, dt = $dt ------")
 
     points = points + velocities * dt
-    #H0 = [sin(w*t), 0., cos(w*t)]
+    H0 = [sin(w*t), 0., cos(w*t)]
     do_active = false
 
     faces, connectivity, do_active = flip_edges(faces, connectivity, points)
 
 
-    if i % 1 == 0 && i > 2#|| do_active
+    if i % 1 == 0 || do_active
         if do_active
             #println("-------------------------------------------------- flipped at step $i")
             edges = make_edges(faces)

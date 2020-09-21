@@ -650,7 +650,7 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
 
                 zeta_xi_eta = A \ x # find local triangle parameters
 
-                n = B * zeta_xi_eta
+                n = B * zeta_xi_etafor
                 return n/norm(n)
             end
 
@@ -674,7 +674,8 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
             end
 
             function make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE; y=points[:,ykey],ny=normals[:,ykey])
-                nx = make_n_analy(x,x1,x2,x3,n1,CDE)
+                #nx = make_n(x,x1,x2,x3,n1,CDE)
+                nx = make_n(x,x1,x2,x3,n1,n2,n3)
                 r = y - x
                 dHnx = make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3)
                 temp = dHnx * ny - dHn[ykey] * nx

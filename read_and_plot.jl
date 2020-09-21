@@ -8,13 +8,16 @@ using JLD2
 using StatsBase
 using Optim
 
-datadir="/home/laigars/sim_data/hysteresis_1_return3_1/"
+dir = "fakinstikuts"
+sourcedir = "/mnt/big_data/shared_folder/plotation/"
+datadir=sourcedir#"/home/laigars/sim_data/new_rotating_fast_3/"
+#datadir = "/home/laigars/sim_data/new_rotating_fast_5/"
 #datadir2="/home/andris/sim_data/2019-03-15/1
 
 #file_no = 1180
 #last_file = readdir(datadir)[file_no]
-last_file = readdir(datadir)[end-3]
-#last_file = "data00114.jld2"
+last_file = readdir(datadir)[end]
+#last_file = "data06114.jld2"
 println()
 println(last_file)
 # fix hardcoding
@@ -63,7 +66,7 @@ z = [a*cospi(θ) for θ in θ, φ in φ]
 
 #Makie.surface(x, y, z, color=:black, shading=false, transparency=true)
 
-scene = Makie.mesh(points', faces',color = :lightgray, shading = true, visible = true)
+scene = Makie.mesh(points', faces',color = :lightgray, shading = false, visible = true)
 Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)#, limits=FRect3D((-5,-5,-5),(10,10,10)))
 #text!("$(last_file[5:end-5])", position = (0, 0, 4), textsize = 0.6, rotation=2.)
 
