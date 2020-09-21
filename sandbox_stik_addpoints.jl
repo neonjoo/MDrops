@@ -18,10 +18,10 @@ include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 ## making mesh
 
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptive_dt/"
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt/"
 
 files = readdir(datadir)
-N = 25
+N = 51
 file = files[3+N]
 #println(file)
 Ndata = size(files,1)-3
@@ -66,8 +66,8 @@ deltaS = make_dS(points,faces)
 critS = sqrt.(deltaSface) .* Hface
 critL = maxLface .* Hface
 ## add points to places of high curvature
-scatter(zface,critS)
-scatter!(zface,critL)
+Plots.scatter(zface,critS)
+Plots.scatter!(zface,critL)
 
 function make_neighbor_faces(faces)
     neighbor_faces = Array{Int64}(undef, 3, 0)

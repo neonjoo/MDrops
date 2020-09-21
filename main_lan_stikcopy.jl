@@ -10,7 +10,7 @@ using StatsBase
 using LinearAlgebra
 using FastGaussQuadrature
 using Optim
-using Makie
+#using Makie
 
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
 include("./mesh_functions.jl")
@@ -53,7 +53,7 @@ println("Loaded mesh; nodes = $(size(points,2))")
 
 continue_sim = false
 
-dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt"
+dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil"
 datadir = "/home/andris/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -153,6 +153,7 @@ for i in 1:steps
     println("---- t = $t, dt = $dt ------")
 
     points = points + velocities * dt
+    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
     cutoff_crit = 0.55
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
@@ -168,39 +169,56 @@ for i in 1:steps
         println("    number of edges: ", size(edges,2))
         println("-----------------------------------")
 
-        points, faces = add_points(points, faces,normals, edges, CDE; cutoff_crit = 0.55)
-        normals = Normals(points, faces)
-        edges = make_edges(faces)
-        neighbor_faces = make_neighbor_faces(faces)
-        connectivity = make_connectivity(edges)
-        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+        points_new, faces_new = add_points(points, faces,normals, edges, CDE; cutoff_crit = cutoff_crit)
+        edges_new = make_edges(faces_new)
+        connectivity_new = make_connectivity(edges_new)
 
         println("-----------------------------------")
-        println("New V-E+F = ", size(points,2)-size(edges,2)+size(faces,2))
-        println("New number of points: ", size(points,2))
-        println("New number of faces: ", size(faces,2))
-        println("New number of edges: ", size(edges,2))
+        println("New V-E+F = ", size(points_new,2)-size(edges_new,2)+size(faces_new,2))
+        println("New number of points: ", size(points_new,2))
+        println("New number of faces: ", size(faces_new,2))
+        println("New number of edges: ", size(edges_new,2))
+        println("-----------------------------------")
+        println("active stabbing after adding points")
+        println("------flipping edges first---------")
+        faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+        edges_new = make_edges(faces_new)
+        println("-- flipped?: $do_active")
+        println("---- active stabbing first --------")
+        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new,deltakoef=0.05)
+        println("------flipping edges second---------")
+        faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+        edges_new = make_edges(faces_new)
+        println("-- flipped?: $do_active")
+        println("---- active stabbing second --------")
+        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new,deltakoef=0.05)
+
+        points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
+        normals = Normals(points, faces)
+        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
         println("New normals pointing out? ", all(sum(normals .* points,dims=1).>0))
         println("-----------------------------------")
-    end
+        println("---------- Points added -----------")
+        println("-----------------------------------")
+
+    else # stabilize regularly if havent added new faces
+        #H0 = [sin(w*t), 0., cos(w*t)]
+        do_active = false
+
+        faces, connectivity, do_active = flip_edges(faces, connectivity, points)
 
 
-    #H0 = [sin(w*t), 0., cos(w*t)]
-    do_active = false
+        if i % 1 == 0 && i > 2#|| do_active
+            if do_active
+                #println("-------------------------------------------------- flipped at step $i")
+                edges = make_edges(faces)
+            end
+            println("-- doing active / step $i / flipped?: $do_active")
+            points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
 
-    faces, connectivity, do_active = flip_edges(faces, connectivity, points)
-
-
-    if i % 1 == 0 && i > 2#|| do_active
-        if do_active
-            #println("-------------------------------------------------- flipped at step $i")
-            edges = make_edges(faces)
         end
-        println("-- doing active / step $i / flipped?: $do_active")
-        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
-        points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
-
     end
+
 
     #dt = 0.1 * scale / max(sqrt(sum(Vvecs.*Vvecs,2)))
     # ElTopo magic
@@ -261,8 +279,8 @@ data = [max_vs, mean_vs, points, faces]
 
 println("Sim done :)")
 
-scene = Makie.mesh(points', faces', color = :gray, shading = false, visible = true)
-Makie.wireframe!(scene[end][1], color = :black, linewidth = 2)
+#scene = Makie.mesh(points', faces', color = :gray, shading = false, visible = true)
+#Makie.wireframe!(scene[end][1], color = :black, linewidth = 2)
 
 
 # scene = Makie.mesh(points2_small', faces1',color = :gray, shading = false, visible = true)

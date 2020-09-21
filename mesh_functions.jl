@@ -599,7 +599,7 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
             r0 = points[:,i]
             minind = argmin(sum((points0 .- r0).^2,dims=1))[2]
             r0 = to_local(r0-points0[:,minind],normals[:,minind])
-            k1[i],k2[i] =  make_pc_local(CDE[:,i],r0[1],r0[2])
+            k1[i],k2[i] =  make_pc_local(CDE[:,minind],r0[1],r0[2])
         end
         LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
         K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
@@ -1480,4 +1480,100 @@ function add_points(points, faces,normals, edges, CDE; cutoff_crit = 0.55)
     end
 
     return new_points, new_faces
+end
+
+function active_stabilize_old_surface(points_old,CDE_old,normals_old,points0::Array{Float64,2},faces::Array{Int64,2},connectivity::Array{Int64,2},edges::Array{Int64,2};
+    deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
+    # actively rearange vertices on a surfaces given by fitted paraboloids
+    # this has been modified to use points before splitting for surface determination
+    # as per Zinchenko(2013)
+    println("active stabilization")
+    points = copy(points0)
+
+    closefaces = make_closefaces(faces)
+    dS = make_dS(points,faces)
+
+    k1 = Array{Float64}(undef, size(points,2))
+    k2 = Array{Float64}(undef, size(points,2))
+    for i = 1:size(points,2)
+        r0 = points[:,i]
+        minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
+        r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
+        k1[i],k2[i] =  make_pc_local(CDE_old[:,minind],r0[1],r0[2])
+    end
+
+    LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+    K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+    hsq = K * LAMBDA.^(-gamma)
+
+    no_improvement = true
+    # initiallize improvement criteria
+    xij = make_edge_lens(points,edges)
+    hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
+
+    Sc0 = maximum(xij./hij) / minimum(xij./hij)
+    Cdelta_min0 = minimum(make_Cdeltas(points, faces))
+    for iter = 1:maxiters
+        #println(iter)
+        gradE = make_gradE(points,faces,closefaces,hsq; p=p,r=r)
+        delta = deltakoef * minimum(make_min_edges(points,connectivity) ./ sum(sqrt.(gradE.^2),dims=1))
+
+        #println("dPoints= ",delta*maximum(sum(sqrt.(gradE.^2),dims=1)))
+        #println("E = ", make_E(points,faces,hsq; p=p,r=r))
+
+
+        points = points - delta * gradE
+
+        #project points on the drop
+        for i = 1:size(points,2)
+            points[:,i] = project_on_drop(points_old,CDE_old,normals_old,points[:,i])
+        end
+
+        # recalculate the mesh parameters
+        dS = make_dS(points,faces)
+        #k1,k2 = make_pc(CDE)
+        for i = 1:size(points,2)
+            r0 = points[:,i]
+            minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
+            r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
+            k1[i],k2[i] =  make_pc_local(CDE_old[:,minind],r0[1],r0[2])
+        end
+        LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+        K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+        hsq = K * LAMBDA.^(-gamma)
+        if iter < checkiters
+            xij = make_edge_lens(points,edges)
+            hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
+
+            Sc = maximum(xij./hij) / minimum(xij./hij)
+            Cdelta_min = minimum(make_Cdeltas(points, faces))
+
+            #println("Sc/Sc0 = ",Sc/Sc0)
+            #println("Cdelta/Cdelta0 = ",Cdelta_min/Cdelta_min0)
+            if Sc > critSc*Sc0 || Cdelta_min < critCdelta*Cdelta_min0
+                no_improvement = false
+            end
+        end
+
+        if iter == checkiters
+            if no_improvement == true
+                println("no significant improvement achieved")
+                println("reversing changes")
+                #points = points0
+                #break
+            else
+                println("improvement detected in the first ", checkiters, " iterations")
+                println("iterating for ", maxiters - checkiters, " more iterations")
+            end
+        end
+
+        # e = make_E(points, faces, hsq,p=p, r=r)
+        # println("E = $e")
+
+        if iter%500 == 0
+            println("iteration ",iter)
+
+        end
+    end
+    return points
 end
