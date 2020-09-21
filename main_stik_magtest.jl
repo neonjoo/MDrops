@@ -11,17 +11,21 @@ include("./mesh_functions.jl")
 include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 
-## making the mesh
-# points, faces = expand_icosamesh(;R=1,depth=2)
-# points = Array{Float64}(points)
-# faces = Array{Int64}(faces)
+## loading the mesh
 
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30/"
 
-@load "./meshes/points_critical_hyst_2_21.jld2"
-@load "./meshes/faces_critical_hyst_2_21.jld2"
+files = readdir(datadir)
+file = files[2+10000]
+#println(file)
+@load "$datadir/$file" data
 
-points = Array{Float64}(points')
-faces = Array{Int64}(faces')
+points, faces = data[1], data[2]
+faces = Array{Int64,2}(faces)
+mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
+                StatsBase.mean(points[2,:]),
+                StatsBase.mean(points[3,:]))
+points = points .- [mean_x, mean_y, mean_z]
 
 a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
 
@@ -46,6 +50,7 @@ dHn = make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=3)
 dHn = make_deltaH_normal(points, faces, normals, mu, H0; gaussorder=3)
 Ht_aa = make_H_tangential(points, faces, normals, CDE, H0, dHn; gaussorder = 3)'
 Hn_aa = make_H_normal(dHn,mu)'
+Ht_aa_flat = make_H_tangential(points, faces, normals, CDE, H0, dHn; gaussorder = 3)'
 
 ## testing against theoretical values
 using QuadGK
@@ -84,16 +89,27 @@ end
 ## maggic
 dHn_teor = (mu-1)*Hn_teor'
 Ht_aa_teor = make_H_tangential(points, faces, normals, CDE, H0, dHn_teor; gaussorder = 3)'
-Ht_aa_teor_nsg = make_H_tangential(points, faces, normals, CDE, H0, dHn_teor; gaussorder = 3)'
-Ht_err = (Ht_aa_teor - Ht_teor) ./ Ht_teor
+Ht_aa_teor_flat = make_H_tangential(points, faces, normals, CDE, H0, dHn_teor; gaussorder = 3)'
 ## plot the results
 using Plots
-plot(Hn_teor,label = "teor")
-plot!(Hn,label = "old")
-plot!(Hn_aa,label = "new")
+Plots.plot(Hn_teor ./ Hn_teor .- 1,label = "teor",linewidth=2,legend=:bottom)
+Plots.plot!(Hn ./ Hn_teor .- 1,label = "old")
+Plots.plot!(Hn_aa ./ Hn_teor .- 1,label = "new")
 
-plot(Ht_teor,label = "teor")
-plot!(Ht,label = "old")
-#plot!(Ht_aa,label = "new")
-plot!(Ht_aa_teor,label = "new_teor")
-plot!(Ht_aa_teor_nsg, label = "nsg")
+Plots.plot(Hn_teor,label = "teor",linewidth=2,legend=:bottom)
+Plots.plot!(Hn,label = "old")
+Plots.plot!(Hn_aa,label = "new")
+
+Plots.plot(Ht_teor,label = "teor",linewidth=2,legend=:bottom)
+Plots.plot!(Ht,label = "old")
+Plots.plot!(Ht_aa_flat,label = "new_flat")
+Plots.plot!(Ht_aa,label = "new_curv")
+Plots.plot!(Ht_aa_teor_flat,label = "new_flat_teor_Hn")
+Plots.plot!(Ht_aa_teor,label = "new_curv_teor_Hn")
+
+Plots.plot(Ht_teor ./ Ht_teor .- 1,label = "teor",linewidth=2,legend=:top)
+Plots.plot!(Ht ./ Ht_teor .- 1,label = "old")
+Plots.plot!(Ht_aa_flat ./ Ht_teor .- 1,label = "new_flat")
+Plots.plot!(Ht_aa ./ Ht_teor .- 1,label = "new_curv")
+Plots.plot!(Ht_aa_teor_flat ./ Ht_teor .- 1,label = "new_flat_teor_Hn")
+Plots.plot!(Ht_aa_teor ./ Ht_teor .- 1,label = "new_curv_teor_Hn")

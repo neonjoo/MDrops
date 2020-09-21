@@ -650,11 +650,12 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
 
                 zeta_xi_eta = A \ x # find local triangle parameters
 
-                n = B * zeta_xi_etafor
+                n = B * zeta_xi_eta
                 return n/norm(n)
             end
 
             function make_n_analy(x,x1,x2,x3,n1,CDE)
+                # error in this function
                 x_p = project_on_given_paraboloid(CDE, n1, x, x1) # x_p is global
                 x_l = to_local(x_p - x1, n1)
                 n = [-2*CDE[1]*x_l[1] - CDE[2]*x_l[2],
@@ -674,7 +675,6 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
             end
 
             function make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE; y=points[:,ykey],ny=normals[:,ykey])
-                #nx = make_n(x,x1,x2,x3,n1,CDE)
                 nx = make_n(x,x1,x2,x3,n1,n2,n3)
                 r = y - x
                 dHnx = make_dHn(x,x1,x2,x3,dHn1,dHn2,dHn3)
@@ -707,7 +707,7 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
                 n2, dHn2 = normals[:,faces[ind2,i]], dHn[faces[ind2,i]]
                 n3, dHn3 = normals[:,faces[ind3,i]], dHn[faces[ind3,i]]
                 Ht[:,ykey] += gauss_curved_pol_vec(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE[:,ykey]), x1,x2,x3,n1,CDE[:,ykey],gaussorder)
-
+                #Ht[:,ykey] += gauss_flat_pol_vec(x->make_Ht(x,x1,x2,x3,n1,n2,n3,dHn1,dHn2,dHn3,CDE[:,ykey]),x1,x2,x3,gaussorder)
             end # end if singular
 
         end # end i for

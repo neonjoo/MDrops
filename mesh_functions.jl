@@ -21,7 +21,6 @@ function Normals(points, faces)
             #println(norm(vec1), norm(vec2))
             normal_j = cross(vec1, vec2)
             angle_j = acos(dot(vec1, vec2) / norm(vec1) / norm(vec2))
-
             normal_i += angle_j * normal_j
         end
         normal_i = normalize(normal_i[:,1])
@@ -600,7 +599,7 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
             r0 = points[:,i]
             minind = argmin(sum((points0 .- r0).^2,dims=1))[2]
             r0 = to_local(r0-points0[:,minind],normals[:,minind])
-            k1[i],k2[i] =  make_pc_local(CDE[:,i],r0[1],r0[2])
+            k1[i],k2[i] =  make_pc_local(CDE[:,minind],r0[1],r0[2])
         end
         LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
         K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
@@ -1290,4 +1289,291 @@ function NeighborVertices(vertex, faces)
         neighbors[:, n] = faces[:,mask[n][2]]
     end
     return setdiff(neighbors, vertex)
+end
+
+function make_neighbor_faces(faces)
+    neighbor_faces = Array{Int64}(undef, 3, 0)
+    for i = 1:size(faces,2)
+
+        vind_1, vind_2, vind_3 = faces[:,i] # vertex indices
+        edge1, edge2, edge3 = sort([vind_1,vind_2]), sort([vind_1,vind_3]), sort([vind_2,vind_3]) #edges
+        edges_i = [edge1,edge2,edge3]
+        # find neighbors for triangle i
+        this_neighbors = [0,0,0]
+        this_neighbors_ind = 1
+        for j = 1:size(faces,2)
+            if i != j
+                vjind_1, vjind_2, vjind_3 = faces[:,j] # vertex indices
+                edgej1, edgej2, edgej3 = sort([vjind_1,vjind_2]), sort([vjind_1,vjind_3]), sort([vjind_2,vjind_3]) #edges
+
+                # if any of the edges of j are in i
+                if (edgej1 in edges_i) || (edgej2 in edges_i) || (edgej3 in edges_i)
+                    this_neighbors[this_neighbors_ind] = j
+                    this_neighbors_ind += 1
+                    if this_neighbors_ind == 5
+                        #this_neighbors_ind = 1
+                        println("hmm, somtheing wrong - 4 neighbors")
+                    end
+                end
+            end
+        end
+
+        neighbor_faces = cat(neighbor_faces,this_neighbors,dims=2)
+    end
+    return neighbor_faces
+end
+
+function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = 0.55)
+    k1, k2 = make_pc(CDE) # principal curvatures on vertices
+    H = sqrt.(k1.^2 + k2.^2)
+
+    ## mark faces that are too curved and need to be split
+    marked_faces = falses(size(faces,2))
+
+    for i = 1:size(faces,2)
+        v1, v2, v3 = points[:,faces[1,i]], points[:,faces[2,i]], points[:,faces[3,i]] # triangle vertices
+        d1, d2, d3 = norm(v1-v2), norm(v1-v3), norm(v2-v3) # edge lengths
+
+        maxd = max(d1,d2,d3) # longest edge
+        Hface = sum(H[faces[:,i]]) / 3 # average curvature H of vertices
+
+        crit = Hface * maxd
+        if crit > cutoff_crit
+            marked_faces[i] = true
+        end
+    end
+
+    # mark also all the faces that have at least two nearby marked faces
+    neighbors_marked = false
+    while !neighbors_marked
+        # println("checking if many neighbors are marked")
+        marked_faces_old = copy(marked_faces)
+        for i = 1:size(faces,2)
+            if marked_faces[i] == false
+
+                nearby_marked_faces = 0
+                for j in neighbor_faces[:,i]
+                    if marked_faces[j] == true
+                        nearby_marked_faces += 1
+                    end
+                end
+                if nearby_marked_faces > 1
+                    marked_faces[i] = true
+                    # println(marked_faces[i])
+                    # println(nearby_marked_faces," marked kaimiņi")
+                end
+
+            end
+        end
+
+        if marked_faces_old == marked_faces
+            neighbors_marked = true
+        else
+            println("marked new faces")
+        end
+    end # end while
+
+
+    return marked_faces
+end
+
+function add_points(points, faces,normals, edges, CDE; cutoff_crit = 0.55)
+    # add points in places where the curvature is too great
+    println("started adding points")
+    neighbor_faces = make_neighbor_faces(faces)
+    marked_faces = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
+    println("Number of marked triangles: ",sum(marked_faces))
+
+    faces_vec = [faces[:,i] for i in 1:size(faces,2)] # makes it easier to delete or add a face
+    new_points = copy(points)
+    checked_sides = Array{Int64}[] # create empty array
+    is = Array{Int64}(undef,(1,3))
+    js = Array{Int64}(undef,(1,3))
+    ks = Array{Int64}(undef,(1,3))
+    original_vertices_length = size(points,2)
+
+    for i in 1:size(faces,2)
+    if marked_faces[i] == true # loop throough face to be split
+        #println("splitting marked triangle #$i")
+        triangle = faces[:,i]
+
+        is[1] = triangle[1]
+        is[2] = triangle[2]
+        is[3] = triangle[3]
+
+        sides = [
+            sort([triangle[1], triangle[2]]),
+            sort([triangle[2], triangle[3]]),
+            sort([triangle[3], triangle[1]])
+        ]
+
+        for j = 1:3
+            if sides[j] in checked_sides
+                js[j] = findfirst(x -> x==sides[j],checked_sides) + original_vertices_length
+            else
+                new_vertex = 0.5*( new_points[:,sides[j][1]] + new_points[:,sides[j][2]] )
+
+                proj1 = project_on_given_paraboloid(CDE[:,sides[j][1]],normals[:,sides[j][1]], new_vertex, new_points[:,sides[j][1]])
+                proj2 = project_on_given_paraboloid(CDE[:,sides[j][2]],normals[:,sides[j][2]], new_vertex, new_points[:,sides[j][2]])
+
+                new_vertex = (proj1 + proj2)/2
+
+                push!(checked_sides, sides[j]) # add side to checked sides
+                new_points = hcat(new_points,new_vertex) # add to new vertices
+                js[j] = size(checked_sides,1) + original_vertices_length
+            end
+        end
+
+        # remove marked triangle from triangle array
+        filter!(x->x!=triangle,faces_vec)
+
+        # add triangles that the marked triangle was split into
+        push!(faces_vec, [is[1],js[1],js[3]])
+        push!(faces_vec, [js[1],is[2],js[2]])
+        push!(faces_vec, [js[2],is[3],js[3]])
+        push!(faces_vec, [js[1],js[2],js[3]])
+
+        # loop through neighbor triangles and check if they are also marked
+        # if not, split them in two
+
+        for k in neighbor_faces[:,i]
+        if marked_faces[k] == false
+            # identify the point across the marked triangle
+            neigh_side = [] # if neigh_point in triangle
+            neigh_triangle = faces[:,k]
+            for (neigh_ind, neigh_point) in enumerate(faces[:,k])
+                if neigh_point in triangle
+                    push!(neigh_side,neigh_point)
+                else
+                    #ks = neigh_point
+                    # shift the indices in the neighboring triangle so that
+                    # the point across the marked triangle is first
+                    neigh_triangle = circshift(faces[:,k],4-neigh_ind)
+                end
+            end
+            sort!(neigh_side)
+            # point split in the middle of shared vertex
+            jjs = findfirst(x -> x==neigh_side,checked_sides) + original_vertices_length
+            # rename points in this triangle for ease of writing
+            ks = neigh_triangle
+
+
+            # remove adjacent triangle from triangle array
+            filter!(x->x!=faces[:,k],faces_vec)
+            # split it in two
+            push!(faces_vec, [ks[2],jjs,ks[1]])
+            push!(faces_vec, [jjs,ks[3],ks[1]])
+
+        end
+        end # k neighbor triangle loop
+
+    end
+    end # i triangle loop
+
+    new_faces = []
+    for (ind,face) in enumerate(faces_vec)
+        if ind == 1
+            new_faces = face
+        else
+            new_faces = hcat(new_faces,face)
+        end
+    end
+
+    return new_points, new_faces
+end
+
+function active_stabilize_old_surface(points_old,CDE_old,normals_old,points0::Array{Float64,2},faces::Array{Int64,2},connectivity::Array{Int64,2},edges::Array{Int64,2};
+    deltakoef=0.01, R0=1.0, gamma=0.25, p=50, r=100, checkiters=100, maxiters=1000,critSc = 0.75,critCdelta = 1.15)
+    # actively rearange vertices on a surfaces given by fitted paraboloids
+    # this has been modified to use points before splitting for surface determination
+    # as per Zinchenko(2013)
+    println("active stabilization")
+    points = copy(points0)
+
+    closefaces = make_closefaces(faces)
+    dS = make_dS(points,faces)
+
+    k1 = Array{Float64}(undef, size(points,2))
+    k2 = Array{Float64}(undef, size(points,2))
+    for i = 1:size(points,2)
+        r0 = points[:,i]
+        minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
+        r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
+        k1[i],k2[i] =  make_pc_local(CDE_old[:,minind],r0[1],r0[2])
+    end
+
+    LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+    K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+    hsq = K * LAMBDA.^(-gamma)
+
+    no_improvement = true
+    # initiallize improvement criteria
+    xij = make_edge_lens(points,edges)
+    hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
+
+    Sc0 = maximum(xij./hij) / minimum(xij./hij)
+    Cdelta_min0 = minimum(make_Cdeltas(points, faces))
+    for iter = 1:maxiters
+        #println(iter)
+        gradE = make_gradE(points,faces,closefaces,hsq; p=p,r=r)
+        delta = deltakoef * minimum(make_min_edges(points,connectivity) ./ sum(sqrt.(gradE.^2),dims=1))
+
+        #println("dPoints= ",delta*maximum(sum(sqrt.(gradE.^2),dims=1)))
+        #println("E = ", make_E(points,faces,hsq; p=p,r=r))
+
+
+        points = points - delta * gradE
+
+        #project points on the drop
+        for i = 1:size(points,2)
+            points[:,i] = project_on_drop(points_old,CDE_old,normals_old,points[:,i])
+        end
+
+        # recalculate the mesh parameters
+        dS = make_dS(points,faces)
+        #k1,k2 = make_pc(CDE)
+        for i = 1:size(points,2)
+            r0 = points[:,i]
+            minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
+            r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
+            k1[i],k2[i] =  make_pc_local(CDE_old[:,minind],r0[1],r0[2])
+        end
+        LAMBDA = k1.^2 + k2.^2 .+ 0.004/R0^2
+        K = 4/(sqrt(3) * size(faces,2)) * sum(LAMBDA.^gamma .* dS)
+        hsq = K * LAMBDA.^(-gamma)
+        if iter < checkiters
+            xij = make_edge_lens(points,edges)
+            hij = sqrt.(0.5*(hsq[edges[1,:]].^2 + hsq[edges[2,:]].^2))
+
+            Sc = maximum(xij./hij) / minimum(xij./hij)
+            Cdelta_min = minimum(make_Cdeltas(points, faces))
+
+            #println("Sc/Sc0 = ",Sc/Sc0)
+            #println("Cdelta/Cdelta0 = ",Cdelta_min/Cdelta_min0)
+            if Sc > critSc*Sc0 || Cdelta_min < critCdelta*Cdelta_min0
+                no_improvement = false
+            end
+        end
+
+        if iter == checkiters
+            if no_improvement == true
+                println("no significant improvement achieved")
+                println("reversing changes")
+                #points = points0
+                #break
+            else
+                println("improvement detected in the first ", checkiters, " iterations")
+                println("iterating for ", maxiters - checkiters, " more iterations")
+            end
+        end
+
+        # e = make_E(points, faces, hsq,p=p, r=r)
+        # println("E = $e")
+
+        if iter%500 == 0
+            println("iteration ",iter)
+
+        end
+    end
+    return points
 end
