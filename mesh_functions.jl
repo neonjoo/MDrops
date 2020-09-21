@@ -298,7 +298,7 @@ end
 
 function make_normals_spline(points, connectivity, edges, normals0;
                     Cs=1.0, eps_inner=1e-5, eps_outer=1e-4,
-                    max_iters_inner=1000, max_iters_outer=10)
+                    max_iters_inner=1000, max_iters_outer=100)
     #returns improved normals and CDE - parameters of locally fitted paraboloid
     #z = C*x^2+D*x*y+E*y^2
     #Cs is a coupling parameter. Zinchencko(2000) sets it to 1
@@ -458,8 +458,18 @@ function make_normals_spline(points, connectivity, edges, normals0;
         print(" iter $m cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
         if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
             # biggest absolute change in normal vector
-            #println("paraboloid fit converged")
+            println("paraboloid fit converged")
             break
+        end
+
+        if m==max_iters_outer
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
         end
     end
     println()
