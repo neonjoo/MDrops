@@ -743,7 +743,7 @@ function make_Cdeltas(points, faces)
     return Cdeltas
 end
 
-function flip_edges(faces, connectivity, vertices)
+function flip_edges(faces, connectivity, vertices; max_neighbors=7)
     # flip edges to improve mesh, updates "faces" and "connectivity"
 
     println("flipping edges")
@@ -779,11 +779,22 @@ function flip_edges(faces, connectivity, vertices)
                 common = filter(x -> x>0, common)
 
                 if length(common) != 2
-                    println("$i, $j, $common")
+                    println("This should never print if the mesh is OK")
                     continue
                 end
 
                 k, m = common[1], common[2]
+
+                k_num = length(filter(x -> x>0, connectivity[:,k]))
+                if k_num >= max_neighbors
+                    continue
+                end
+
+                m_num = length(filter(x -> x>0, connectivity[:,m]))
+                if m_num >= max_neighbors
+                    continue
+                end
+
                 xk, xm = vertices[:,k], vertices[:,m]
 
                 kc = find_circumcenter(xi, xj, xk)
