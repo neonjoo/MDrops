@@ -650,7 +650,7 @@ function make_H_tangential(points, faces, normals, CDE, H0, deltaH_normal; gauss
 
                 zeta_xi_eta = A \ x # find local triangle parameters
 
-                n = B * zeta_xi_eta
+                n = B * zeta_xi_etafor
                 return n/norm(n)
             end
 

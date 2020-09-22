@@ -3,9 +3,9 @@ using JLD2
 using FileIO
 using StatsBase
 
-dir = "hysteresis_1_return3"
-sourcedir = "/home/laigars/sim_data/$dir"
-outdir="/home/laigars/sim_data/pics/$dir"
+dir = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt"
+sourcedir = "/mnt/big_data/shared_folder/plotation/$dir"
+outdir="/mnt/big_data/shared_folder/plotation/$dir"
 len = size(readdir(sourcedir),1) - 1
 
 if !isdir("$outdir")
@@ -15,7 +15,7 @@ end
 
 ratios = []
 steps = []
-for f in readdir(sourcedir)[2:10:end-1]
+for f in readdir(sourcedir)[3:1:end]
     println("f = $f")
     #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
     @load "$sourcedir/$f" data
@@ -28,7 +28,7 @@ for f in readdir(sourcedir)[2:10:end-1]
 
     points = points .- [mean_x, mean_y, mean_z]
     scene = Makie.mesh(points', faces', color = :gray, shading = false, visible = true)
-    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-4),(2,2,8)))
+    Makie.wireframe!(scene[end][1], color = :black, linewidth = 1,limits=FRect3D((-1,-1,-2),(2,2,4)))
 
 
     # global ratios, steps

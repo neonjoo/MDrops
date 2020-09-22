@@ -779,6 +779,7 @@ function flip_edges(faces, connectivity, vertices)
                 common = filter(x -> x>0, common)
 
                 if length(common) != 2
+                    println("$i, $j, $common")
                     continue
                 end
 
