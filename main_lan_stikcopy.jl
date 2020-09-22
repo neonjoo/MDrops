@@ -53,7 +53,7 @@ println("Loaded mesh; nodes = $(size(points,2))")
 
 continue_sim = false
 
-dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil"
+dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2_splitfrom13"
 datadir = "/home/andris/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -156,8 +156,10 @@ for i in 1:steps
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
     cutoff_crit = 0.55
+    minN_triangles_to_split = 13
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
-    if any(marked_faces)
+    println("Number of too large triangles: ",sum(marked_faces))
+    if sum(marked_faces) > minN_triangles_to_split#any(marked_faces)
         # if i == 9
         #     break
         # end
@@ -195,6 +197,7 @@ for i in 1:steps
 
         points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
         normals = Normals(points, faces)
+        println("New first approx normals pointing out? ", all(sum(normals .* points,dims=1).>0))
         normals, CDE = make_normals_spline(points, connectivity, edges, normals)
         println("New normals pointing out? ", all(sum(normals .* points,dims=1).>0))
         println("-----------------------------------")

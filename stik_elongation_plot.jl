@@ -66,7 +66,7 @@ for i = 1:Ndata
     mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
                     StatsBase.mean(points[2,:]),
                     StatsBase.mean(points[3,:]))
-    points = points .- [mean_x, mean_y, mean_z]
+    points = points #.- [mean_x, mean_y, mean_z]
 
     function f(ab::Array{Float64,1})
         return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
@@ -103,7 +103,7 @@ for i = 1:Ndata
     mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
                     StatsBase.mean(points[2,:]),
                     StatsBase.mean(points[3,:]))
-    points = points .- [mean_x, mean_y, mean_z]
+    points = points #.- [mean_x, mean_y, mean_z]
 
     function f(ab::Array{Float64,1})
         return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
@@ -141,7 +141,7 @@ for i = 1:Ndata
     mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
                     StatsBase.mean(points[2,:]),
                     StatsBase.mean(points[3,:]))
-    points = points .- [mean_x, mean_y, mean_z]
+    points = points #.- [mean_x, mean_y, mean_z]
 
     function f(ab::Array{Float64,1})
         return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
@@ -160,9 +160,7 @@ end
 
 plot!(ts,as./bs)
 
-
-
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil/"
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2/"
 
 files = readdir(datadir)
 
@@ -181,7 +179,7 @@ for i = 1:Ndata
     mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
                     StatsBase.mean(points[2,:]),
                     StatsBase.mean(points[3,:]))
-    points = points .- [mean_x, mean_y, mean_z]
+    points = points #.- [mean_x, mean_y, mean_z]
 
     function f(ab::Array{Float64,1})
         return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
@@ -199,3 +197,48 @@ end
 
 
 plot!(ts,as./bs)
+
+
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2_splitfrom13/"
+
+files = readdir(datadir)
+
+Ndata = size(files,1)-3
+#Ndata = 50
+as = zeros(Ndata,1)
+bs = zeros(Ndata,1)
+ts = zeros(Ndata,1)
+meanz = zeros(Ndata,1)
+for i = 1:Ndata
+    file = files[2+i]
+    #println(file)
+    @load "$datadir/$file" data
+
+    points, faces, t = data[1], data[2], data[3]
+    faces = Array{Int64,2}(faces)
+    mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
+                    StatsBase.mean(points[2,:]),
+                    StatsBase.mean(points[3,:]))
+    points = points #.- [mean_x, mean_y, mean_z]
+
+    function f(ab::Array{Float64,1})
+        return sum((points[1,:].^2/ab[1]^2 .+ points[2,:].^2/ab[1]^2 .+
+                points[3,:].^2/ab[2]^2 .- 1).^2)
+    end
+    x0 = [0.5, 1.5]
+    res = Optim.optimize(f,x0)
+    b = Optim.minimizer(res)[1]
+    a = Optim.minimizer(res)[2]
+
+    meanz[i] = mean_z
+    as[i] = a
+    bs[i] = b
+    ts[i] = t
+end
+
+
+plot!(ts,as./bs)
+
+
+xlims!((0,100))
+ylims!((1,6))
