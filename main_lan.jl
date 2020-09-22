@@ -34,7 +34,7 @@ points = Array{Float64}(points)
 faces = Array{Int64}(faces)
 #points = points
 
-println("Loaded mesh; nodes = $(size(points,2))")
+
 
 continue_sim = true
 
@@ -81,6 +81,7 @@ if continue_sim
     println("last step: $last_step")
     normals = Normals(points, faces)
 end
+println("Loaded mesh; nodes = $(size(points,2))")
 
 if !isdir("$datadir")
     mkdir("$datadir")
@@ -103,6 +104,7 @@ for i in 1:steps
     edges = make_edges(faces)
     connectivity = make_connectivity(edges)
     normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+    neighbor_faces = make_neighbor_faces(faces)
 
     psi = PotentialSimple_par(points, faces, normals, mu, H0)
     Ht = HtField_par(points, faces, psi, normals)
@@ -161,8 +163,10 @@ for i in 1:steps
     # end
 
     cutoff_crit = 0.55
+    minN_triangles_to_split = 13
+
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
-    if any(marked_faces)
+    if sum(marked_faces) > minN_triangles_to_split
         # if i == 9
         #     break
         # end
@@ -190,13 +194,13 @@ for i in 1:steps
         edges_new = make_edges(faces_new)
         println("-- flipped?: $do_active")
         println("---- active stabbing first --------")
-        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new,deltakoef=0.05)
+        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
         println("------flipping edges second---------")
         faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
         edges_new = make_edges(faces_new)
         println("-- flipped?: $do_active")
         println("---- active stabbing second --------")
-        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new,deltakoef=0.05)
+        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
 
         points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
         normals = Normals(points, faces)
