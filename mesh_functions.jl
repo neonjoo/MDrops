@@ -632,8 +632,8 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
             if no_improvement == true
                 println("no significant improvement achieved")
                 println("reversing changes")
-                #points = points0
-                #break
+                points = points0
+                break
             else
                 println("improvement detected in the first ", checkiters, " iterations")
                 println("iterating for ", maxiters - checkiters, " more iterations")
@@ -1581,8 +1581,8 @@ function active_stabilize_old_surface(points_old,CDE_old,normals_old,points0::Ar
             if no_improvement == true
                 println("no significant improvement achieved")
                 println("reversing changes")
-                #points = points0
-                #break
+                points = points0
+                break
             else
                 println("improvement detected in the first ", checkiters, " iterations")
                 println("iterating for ", maxiters - checkiters, " more iterations")

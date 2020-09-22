@@ -199,7 +199,7 @@ end
 plot!(ts,as./bs)
 
 
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2_splitfrom13/"
+datadir="/home/andris/sim_data/4"
 
 files = readdir(datadir)
 
@@ -240,5 +240,5 @@ end
 plot!(ts,as./bs)
 
 
-xlims!((0,100))
-ylims!((1,6))
+xlims!((0,50))
+ylims!((1,2.5))

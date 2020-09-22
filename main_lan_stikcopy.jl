@@ -53,7 +53,7 @@ println("Loaded mesh; nodes = $(size(points,2))")
 
 continue_sim = false
 
-dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2_splitfrom13"
+dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_zinch_stabil"
 datadir = "/home/andris/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -106,12 +106,13 @@ end
 
 
 
-
+previous_i_when_flip = 0
 for i in 1:steps
     println("------------------------------------------------------------------------------------------------- Step ($i)$(i+last_step)")
     global points, faces, connectivity, normals, all_vs, velocities, neighbor_faces, edges, CDE
     global t, H0, epsilon
     global max_abs_v, max_v_avg
+    global previous_i_when_flip
     edges = make_edges(faces)
     neighbor_faces = make_neighbor_faces(faces)
     connectivity = make_connectivity(edges)
@@ -187,13 +188,13 @@ for i in 1:steps
         edges_new = make_edges(faces_new)
         println("-- flipped?: $do_active")
         println("---- active stabbing first --------")
-        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new,deltakoef=0.05)
+        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
         println("------flipping edges second---------")
         faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
         edges_new = make_edges(faces_new)
         println("-- flipped?: $do_active")
         println("---- active stabbing second --------")
-        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new,deltakoef=0.05)
+        points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
 
         points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
         normals = Normals(points, faces)
@@ -210,14 +211,21 @@ for i in 1:steps
 
         faces, connectivity, do_active = flip_edges(faces, connectivity, points)
 
-
-        if i % 1 == 0 && i > 2#|| do_active
-            if do_active
-                #println("-------------------------------------------------- flipped at step $i")
+        if do_active
+            if i - previous_i_when_flip > 5
+                println("doing active because flipped")
                 edges = make_edges(faces)
+                points = active_stabilize(points, faces, CDE, connectivity, edges, normals)
+            else
+                println("flipped; not doing active")
             end
-            println("-- doing active / step $i / flipped?: $do_active")
-            points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
+            previous_i_when_flip = i
+        end
+
+        if i % 100 == 0 && i > 2
+
+            println("doing active every 100th time step")
+            points = active_stabilize(points, faces, CDE, connectivity, edges, normals)
 
         end
     end
