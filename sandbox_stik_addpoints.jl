@@ -18,7 +18,7 @@ include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 ## making mesh
 
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt/"
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil/"
 
 files = readdir(datadir)
 N = 51
