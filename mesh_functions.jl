@@ -206,7 +206,7 @@ function to_local(r::Array{Float64,1},normal::Array{Float64,1})
     cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2)
     cost = normal[3]
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2)
-    sint = sqrt( 1 - normal[3]^2 )
+    sint = sqrt( abs(1 - normal[3]^2) )
 
     A = [cosf  -sinf  0;
         sinf*cost  cosf*cost  -sint;
@@ -222,7 +222,7 @@ function to_global(rprim::Array{Float64,1},normal::Array{Float64,1})
     cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
     cost = normal[3]
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
-    sint = sqrt( 1 - normal[3]^2 )
+    sint = sqrt(abs( 1 - normal[3]^2 ))
 
     A = [cosf  -sinf  0;
         sinf*cost  cosf*cost  -sint;
