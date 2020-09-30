@@ -53,7 +53,7 @@ println("Loaded mesh; nodes = $(size(points,2))")
 
 continue_sim = false
 
-dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_zinch_stabil"
+dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_uncoupled_parabs"
 datadir = "/home/andris/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -116,8 +116,8 @@ for i in 1:steps
     edges = make_edges(faces)
     neighbor_faces = make_neighbor_faces(faces)
     connectivity = make_connectivity(edges)
-    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
-
+    #normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+    normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
     psi = PotentialSimple(points, faces, normals, mu, H0)
     Ht = HtField(points, faces, psi, normals)
     Hn_norms = NormalFieldCurrent(points, faces, normals, Ht, mu, H0)
@@ -154,7 +154,8 @@ for i in 1:steps
     println("---- t = $t, dt = $dt ------")
 
     points = points + velocities * dt
-    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+    normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
+    #normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
     cutoff_crit = 0.55
     minN_triangles_to_split = 13
@@ -199,7 +200,8 @@ for i in 1:steps
         points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
         normals = Normals(points, faces)
         println("New first approx normals pointing out? ", all(sum(normals .* points,dims=1).>0))
-        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+        normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
+        #normals, CDE = make_normals_spline(points, connectivity, edges, normals)
         println("New normals pointing out? ", all(sum(normals .* points,dims=1).>0))
         println("-----------------------------------")
         println("---------- Points added -----------")

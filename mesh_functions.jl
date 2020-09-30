@@ -206,7 +206,7 @@ function to_local(r::Array{Float64,1},normal::Array{Float64,1})
     cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2)
     cost = normal[3]
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2)
-    sint = sqrt( 1 - normal[3]^2 )
+    sint = sqrt( abs(1 - normal[3]^2) )
 
     A = [cosf  -sinf  0;
         sinf*cost  cosf*cost  -sint;
@@ -222,7 +222,7 @@ function to_global(rprim::Array{Float64,1},normal::Array{Float64,1})
     cosf = normal[2] / sqrt( normal[1]^2 + normal[2]^2 )
     cost = normal[3]
     sinf = normal[1] / sqrt( normal[1]^2 + normal[2]^2 )
-    sint = sqrt( 1 - normal[3]^2 )
+    sint = sqrt(abs( 1 - normal[3]^2 ))
 
     A = [cosf  -sinf  0;
         sinf*cost  cosf*cost  -sint;
@@ -474,6 +474,271 @@ function make_normals_spline(points, connectivity, edges, normals0;
     end
     println()
     return normals, CDE
+end
+
+function make_deep_normals_spline(points, connectivity, edges, normals0;
+                    Cs=1.0, eps_inner=1e-5, eps_outer=1e-4,
+                    max_iters_inner=1000, max_iters_outer=100)
+    # this function differs from make_normals_spline() by the fact that it takes
+    # the vertices that neighbor the neighboring vertices in the paraboloid fitting
+    #returns improved normals and CDE - parameters of locally fitted paraboloid
+    #z = C*x^2+D*x*y+E*y^2
+    #Cs is a coupling parameter. Zinchencko(2000) sets it to 1
+    #eps inner and outer are convergence criteria.
+    #eps outer >> eps_inner
+
+    # takes almost 1minute to enter this function from main_lan.jl call
+
+    println("fitting local paraboloids, outer costs: ")
+
+    CDE = zeros(Float64, size(points)) # 3xN array
+    gradPhi = [0.,0.,0.]
+    normals = copy(normals0)
+    #outer iterations
+
+    for m = 1:max_iters_outer
+        #println(m)
+        normalsp = copy(normals) #previous
+        for i = 1:size(points,2)
+            #inner iterations
+            for k = 1:max_iters_inner
+                #println("inner iter = ",k)
+                # get edges close to vertex
+                # ev = 3xn matrix containing edge vectors from i-th to all adjecent points + a level deeper
+                # n = v^2-2v
+                # ev is padded with 0-os
+                v = size(connectivity,1) ## maximum valence
+                ev = zeros(Float64,3,v^2-2v)
+                edge_normal_sum = zeros(Float64,3,v^2-2v)
+                checked_points = zeros(Int64,v^2-2v)
+
+                ind = 1
+                for j in connectivity[:,i]
+                    # iterate through close points j
+                    if j == 0
+                        break
+                    end
+
+                    if !(j in checked_points)
+                        ev[:,ind] = points[:,j] - points[:,i]
+                        edge_normal_sum[:,ind] = normals[:,j] + normals[:,i]
+                        checked_points[ind] = j
+
+                        ev[:,ind] = to_local(ev[:,ind],normals[:,i])
+                        edge_normal_sum[:,ind] = to_local(edge_normal_sum[:,ind],normals[:,i])
+                        ind += 1
+                    end
+
+                    for k in connectivity[:,j]
+                        # iterate through next level of close points j
+                        if k == 0
+                            break
+                        end
+
+                        if !(k in checked_points)
+                            #println(checked_points)
+                            ev[:,ind] = points[:,k] - points[:,i]
+                            edge_normal_sum[:,ind] = normals[:,k] + normals[:,i]
+                            checked_points[ind] = k
+
+                            ev[:,ind] = to_local(ev[:,ind],normals[:,i])
+                            edge_normal_sum[:,ind] = to_local(edge_normal_sum[:,ind],normals[:,i])
+                            ind += 1
+                        end
+
+                    end
+                end
+                # fit parabola and get CDE coefficients
+
+                #M  3x3
+                #b  3x1
+                # make matrix M and vector b to be solved for least squares problem
+                # println(ev[1,:])
+                # println(ev[2,:])
+                # println(ev[3,:])
+                # println(-2*ev[3,:]./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                #     ev[1,:].^2)
+                # readline(stdin)
+
+                b = [sum(filter(x -> !isnan(x),
+                 -2*ev[3,:]./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^2
+                 ));
+                 sum(filter(x -> !isnan(x),
+                 -2*ev[3,:]./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].*ev[2,:]
+                 ));
+                 sum(filter(x -> !isnan(x),
+                 -2*ev[3,:]./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[2,:].^2
+                 ))
+                ]
+
+                M = [sum(filter(x -> !isnan(x),
+                    2 ./ (ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^4
+                     )) sum(filter(x -> !isnan(x),
+                    2 ./ (ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^3 .* ev[2,:]
+                     )) sum(filter(x -> !isnan(x),
+                    2 ./ (ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^2 .* ev[2,:].^2
+                     ));
+
+
+                     sum(filter(x -> !isnan(x),
+                    2 ./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^3 .* ev[2,:]
+                     )) sum(filter(x -> !isnan(x),
+                    2 ./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^2 .* ev[2,:].^2
+                     )) sum(filter(x -> !isnan(x),
+                    2 ./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:] .* ev[2,:].^3
+                     ));
+
+
+                      sum(filter(x -> !isnan(x),
+                    2 ./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:].^2 .* ev[2,:].^2
+                     )) sum(filter(x -> !isnan(x),
+                    2 ./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[1,:] .* ev[2,:].^3
+                     )) sum(filter(x -> !isnan(x),
+                    2 ./(ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                     ev[2,:].^4
+                     ))
+                ]
+
+                CDE[:,i] = M\(-b)
+
+                # get gradPi
+                gradPhi[1] = sum(filter(x -> !isnan(x),
+                            -2*(CDE[1,i]*ev[1,:].^2 + CDE[2,i]*ev[1,:].*ev[2,:] +
+                            CDE[3,i]*ev[2,:].^2 - ev[3,:]) ./
+                            (ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                            (2*CDE[1,i]*ev[1,:].*ev[3,:] +
+                            CDE[2,i]*ev[2,:].*ev[3,:] + ev[1,:])
+                            ))
+
+                gradPhi[2] = sum(filter(x -> !isnan(x),
+                            -2*(CDE[1,i]*ev[1,:].^2 + CDE[2,i]*ev[1,:].*ev[2,:] +
+                            CDE[3,i]*ev[2,:].^2 - ev[3,:]) ./
+                            (ev[1,:].^2 + ev[2,:].^2 + ev[3,:].^2) .*
+                            (CDE[2,i]*ev[1,:].*ev[3,:] +
+                            2*CDE[3,i]*ev[2,:].*ev[3,:] + ev[2,:])
+                            ))
+
+                gradPhi[3] = 0.
+               # add the normal coupling term to get GradPhi
+                #this fake gradPhi += vec(2*Cs*sum( sum(ev .* edge_normal_sum,dims=2) ./ sum(ev .* ev,dims=2) .* ev, dims=1))
+               #gradPhi += 2*Cs*sum( sum(ev .* edge_normal_sum,dims=1) ./ sum(ev .* ev,dims=1) .* ev, dims=2)
+               gradPhi[1] += 2*Cs*sum(filter(x -> !isnan(x), sum(ev[1,:] .* edge_normal_sum[1,:]) ./ sum(ev[1,:] .* ev[1,:]) .* ev[1,:] ))
+               gradPhi[2] += 2*Cs*sum(filter(x -> !isnan(x), sum(ev[2,:] .* edge_normal_sum[2,:]) ./ sum(ev[2,:] .* ev[2,:]) .* ev[2,:] ))
+               gradPhi[3] += 2*Cs*sum(filter(x -> !isnan(x), sum(ev[3,:] .* edge_normal_sum[3,:]) ./ sum(ev[3,:] .* ev[3,:]) .* ev[3,:] ))
+
+               #gradPhi = gradPhi + ...
+               #  2*Cs*sum( bsxfun(@times, sum(ev .* edge_normal_sum,2) ./ sum(ev .* ev,2) , ev), 1);
+
+               # convert gradPhi to global coordinates
+               #gradPhi = rotate(gradPhi, normals(i,:), 'to global');
+               gradPhi = to_global(gradPhi,normals[:,i])
+               # project to tangential plane
+               # Matrix(1.0I, 3, 3) <- 3x3 Identity matrix
+               tang_proj = Matrix(1.0I, 3, 3) - normals[:,i] * normals[:,i]'
+               gradPhi = tang_proj * gradPhi
+
+               P = normals[:,i] - 0.05*gradPhi
+               normals[:,i] = P ./ norm(P)
+
+               # println("edge number = ", i)
+               # println("CDE = ", CDE[:,i])
+               # println("gradPhi = ",gradPhi)
+               #println("gradPhinorm = ",norm(gradPhi))
+               #println("Phi = ",norm(gradPhi))
+               #readline(stdin)
+               #println(norm(gradPhi))
+               #readline()
+               if norm(gradPhi) < eps_inner
+                   break
+               end
+               if k == max_iters_inner
+                   println("inner iterations not converged")
+               end
+            end
+        end
+        #println("outer iters:")
+        #println(maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+
+        print(" iter $m cost: ", maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))))
+        if maximum(sqrt.(sum(x -> x^2, normalsp - normals, dims=1))) < eps_outer
+            # biggest absolute change in normal vector
+            println("paraboloid fit converged")
+            break
+        end
+
+        if m==max_iters_outer
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+            println("WARNING!!! paraboloid fit not converged")
+        end
+    end
+    println()
+    return normals, CDE
+end
+
+function make_normals_parab(points, connectivity, normals0; eps = 10^-8)
+    # described in Zinchenko et al. 1997
+    #normals and CDE - parameters from locally fitted paraboloids
+    #z = A*x+B*y+C*x^2+D*x*y+E*y^2
+    #A and B should be 0 at the end
+    println("fitting decoupled locals paraboloids")
+
+    CDE = zeros(Float64, size(points)) # 3xN array
+    AB = zeros(Float64, (2,size(points,2))) # 2xN array
+    normals = copy(normals0)
+    for i = 1:size(points,2)
+        # get edges close to vertex
+        # ev = 3xv matrix containing edge vectors from i-th to all adjecent points
+        # ev is padded with 0-os
+        #v = size(connectivity,1) ## maximum valence
+        #ev = zeros(Float64,3,v)
+        n0 = [0.,0.,0.]
+        A, B, C, D, E = 0., 0., 0., 0., 0.
+        while norm(n0 - normals[:,i]) > eps
+            n0 = normals[:,i]
+            b = zeros(Float64,(5,1))
+            M = zeros(Float64,(5,5))
+            for j = connectivity[:,i]
+                if j == 0
+                    break
+                end
+
+                ev = points[:,j] - points[:,i]
+                ev = to_local(ev,normals[:,i])
+                x,y,z = ev
+
+                b += 2/(x^2+y^2+z^2) * (-z) * [x, y, x^2, x*y, y^2]
+                M += 2/(x^2+y^2+z^2) * [x, y, x^2, x*y, y^2] * [x, y, x^2, x*y, y^2]'
+            end
+            A,B,C,D,E = M\(-b)
+            normals[:,i] = to_global([ -A, -B, 1.] / sqrt(1. + A^2 + B^2), normals[:,i])
+
+            # println(norm(n0 - normals[:,i]), "  ", i)
+            # println(dot(normals[:,i] , points[:,i]))
+            # println("A = ",A, " B = ", B)
+            # println(C, " ", D, " ", E)
+            # readline()
+        end
+        AB[:,i] = [A,B]
+        CDE[:,i] = [C,D,E]
+    end
+    println("paraboloids fitted")
+    return normals, CDE, AB
 end
 
 function make_min_edges(points,connectivity)
