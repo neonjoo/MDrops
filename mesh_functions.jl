@@ -709,7 +709,10 @@ function make_normals_parab(points, connectivity, normals0; eps = 10^-8)
         #ev = zeros(Float64,3,v)
         n0 = [0.,0.,0.]
         A, B, C, D, E = 0., 0., 0., 0., 0.
+
+        # same_i_times = 0
         while norm(n0 - normals[:,i]) > eps
+            i_perv = i
             n0 = normals[:,i]
             b = zeros(Float64,(5,1))
             M = zeros(Float64,(5,5))
@@ -727,12 +730,23 @@ function make_normals_parab(points, connectivity, normals0; eps = 10^-8)
             end
             A,B,C,D,E = M\(-b)
             normals[:,i] = to_global([ -A, -B, 1.] / sqrt(1. + A^2 + B^2), normals[:,i])
-
-            # println(norm(n0 - normals[:,i]), "  ", i)
-            # println(dot(normals[:,i] , points[:,i]))
+            normals[:,i] /= norm(normals[:,i])
+            # println()
+            # println(norm(n0 - normals[:,i]), "  i = ", i)
+            # println("n.r = ",dot(normals[:,i] , points[:,i]))
+            # println("norm(n) = ", norm(normals[:,i]))
+            # println("norm(n) before rotation = ", norm([ -A, -B, 1.] / sqrt(1. + A^2 + B^2)))
             # println("A = ",A, " B = ", B)
             # println(C, " ", D, " ", E)
-            # readline()
+            # println("determinant = ", det(rotmat))
+            # println("rotation matrix")
+            # println(rotmat[1,:])
+            # println(rotmat[2,:])
+            # println(rotmat[3,:])
+            # same_i_times += 1
+            # if same_i_times > 10
+            #     readline()
+            # end
         end
         AB[:,i] = [A,B]
         CDE[:,i] = [C,D,E]
