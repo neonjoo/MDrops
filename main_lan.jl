@@ -27,18 +27,18 @@ include("./sandbox_lang.jl")
 
 # points = convert(Array, points_csv)
 # faces = convert(Array, faces_csv)
-points, faces = expand_icosamesh(R=1, depth=3)
+points, faces = expand_icosamesh(R=1, depth=2)
 
 #@load "./meshes/faces_critical_hyst_2_21.jld2" faces
 points = Array{Float64}(points)
 faces = Array{Int64}(faces)
 #points = points
 
+println("Running on $(Threads.nthreads()) threads")
 
+continue_sim = false
 
-continue_sim = true
-
-dataname = "new_rotating_fast_6"
+dataname = "star_5"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -52,12 +52,12 @@ lambda = 7.6
 gamma = H0[3]^2 * R0 / Bm
 #gamma = 8.2 * 1e-4
 #gamma = 7.7 * 1e-4 # from fitted exp data with mu=34
-w = 100
+w = 10
 
 reset_vmax = true
 last_step = 0
 t = 0
-time_k = 0.05
+time_k = 0.05012312572132173
 dt = 2pi / w * time_k
 steps = 10000
 epsilon = 0.05
@@ -71,7 +71,7 @@ max_abs_v = zeros(1, steps)
 if continue_sim
     reset_vmax = false
 
-    last_file = readdir(datadir)[end-1]
+    last_file = readdir(datadir)[end]
     global data
     println("continuing simulation from: $datadir/$last_file")
     @load "$datadir/$last_file" data
@@ -81,6 +81,9 @@ if continue_sim
     println("last step: $last_step")
     normals = Normals(points, faces)
 end
+
+Bm = 30
+
 println("Loaded mesh; nodes = $(size(points,2))")
 
 if !isdir("$datadir")
@@ -92,84 +95,50 @@ if !isdir("$datadir")
     cp("main_lan.jl", "$datadir/aa_source_code.jl")
 end
 
-addprocs(3)
-println("nprocs: $(nprocs()), nworkers: $(nworkers())")
-
+previous_i_when_flip = 0
 
 for i in 1:steps
-    println("------------------------------------------------------------------------------------------------- Step ($i)$(i+last_step)")
+    println("-----------------------Number of nodes: $(size(points,2))---------------- Step ($i)$(i+last_step)")
     global points, faces, connectivity, normals, all_vs, velocities
     global t, H0, epsilon
     global max_abs_v, max_v_avg
+    global previous_i_when_flip
     edges = make_edges(faces)
     connectivity = make_connectivity(edges)
-    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+    normals, CDE, AB = make_normals_parab(points, connectivity, normals)
     neighbor_faces = make_neighbor_faces(faces)
 
     psi = PotentialSimple_par(points, faces, normals, mu, H0)
     Ht = HtField_par(points, faces, psi, normals)
-    Hn_norms = NormalFieldCurrent_par(points, faces, normals, Ht, mu, H0)
+    @time Hn_norms = NormalFieldCurrent_par(points, faces, normals, Ht, mu, H0)
     Hn = normals .* Hn_norms'
-    #println("H = $(H0)")
-    #mup = mu
-    # magnitudes squared of the normal force
-    Hn_2 = sum(Hn.^2, dims=1)
-    # magnitudes squared of the tangential force
-    Ht_2 = sum(Ht.^2, dims=1)
 
-    #tensorn = mup*(mup-1)/8/pi * Hn_2 + (mup-1)/8/pi * Ht_2
-    #tensorn = tensorn * Bm
-    #zc = SG.Zinchenko2013(points, faces, normals)
-    #println("velocity:")
-    #@time velocitiesn_norms = InterfaceSpeedZinchenko(points, faces, tensorn, eta, gamma, normals)
-    #velocities = normals .* velocitiesn_norms' # need to project v_norms on surface
+    Hn_2 = sum(Hn.^2, dims=1)
+    Ht_2 = sum(Ht.^2, dims=1)
 
     println("Bm = $Bm")
 
     @time velocities = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
-
-    #@time velocities = make_enright_velocities(points, t)
-    #passive stabilization
-    #velocities = SG.stabilise!(velocities, points, faces, normals, zc)
+    @time velocities = make_Vvecs_conjgrad_par(normals,faces, points, velocities, 1e-6, 500)
 
     #dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
      #if dt < 0.2
     #     dt = 0.2
     # end
-    println("max v: $(maximum(abs.(velocities))),   min v: $(minimum(abs.(velocities)))")
+    #println("max v: $(maximum(abs.(velocities))),   min v: $(minimum(abs.(velocities)))")
     t += dt
     println("---- t = $t, dt = $dt ------")
 
     points = points + velocities * dt
-    normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+    normals, CDE, AB = make_normals_parab(points, connectivity, normals)
 
     H0 = [sin(w*t), 0., cos(w*t)]
 
-    # do_active = false
-    # faces, connectivity, do_active = flip_edges(faces, connectivity, points)
-    #
-    # if do_active
-    #     edges = make_edges(faces)
-    # end
-    #
-    # if i % 1 == 0 || do_active
-    #     println("-- doing active / step $i / flipped?: $do_active")
-    #
-    #     # could be bad to recalculate normals and CDE with the just flipped edges
-    #     #normals, CDE = make_normals_spline(points, connectivity, edges, normals)
-    #     points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
-    #
-    # end
-
     cutoff_crit = 0.55
-    minN_triangles_to_split = 13
+    minN_triangles_to_split = 5
 
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
     if sum(marked_faces) > minN_triangles_to_split
-        # if i == 9
-        #     break
-        # end
         println("-----------------------------------")
         println("----------Adding mesh points-------")
         println("    V-E+F = ", size(points,2)-size(edges,2)+size(faces,2))
@@ -182,7 +151,6 @@ for i in 1:steps
         edges_new = make_edges(faces_new)
         connectivity_new = make_connectivity(edges_new)
 
-        println("-----------------------------------")
         println("New V-E+F = ", size(points_new,2)-size(edges_new,2)+size(faces_new,2))
         println("New number of points: ", size(points_new,2))
         println("New number of faces: ", size(faces_new,2))
@@ -204,27 +172,31 @@ for i in 1:steps
 
         points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
         normals = Normals(points, faces)
-        normals, CDE = make_normals_spline(points, connectivity, edges, normals)
+        normals, CDE, AB = make_normals_parab(points, connectivity, normals)
         println("New normals pointing out? ", all(sum(normals .* points,dims=1).>0))
         println("-----------------------------------")
         println("---------- Points added -----------")
         println("-----------------------------------")
 
     else # stabilize regularly if havent added new faces
-        #H0 = [sin(w*t), 0., cos(w*t)]
         do_active = false
 
         faces, connectivity, do_active = flip_edges(faces, connectivity, points)
 
-
-        if i % 1 == 0 && i > 2#|| do_active
-            if do_active
-                #println("-------------------------------------------------- flipped at step $i")
+        if do_active
+            if i - previous_i_when_flip > 5
+                println("doing active because flipped")
                 edges = make_edges(faces)
+                points = active_stabilize(points, faces, CDE, connectivity, edges, normals)
+            else
+                println("flipped; not doing active")
             end
-            println("-- doing active / step $i / flipped?: $do_active")
-            points = active_stabilize(points, faces, CDE, connectivity, edges, normals,deltakoef=0.05)
+            previous_i_when_flip = i
+        end
 
+        if i % 100 == 0 && i > 2
+            println("doing active every 100th time step")
+            points = active_stabilize(points, faces, CDE, connectivity, edges, normals)
         end
     end
 
@@ -256,9 +228,9 @@ for i in 1:steps
         v0max = max_v_avg
     end
 
-    println("Bm = $Bm")
-    println("vi = $vi, max_v_avg = $max_v_avg, v0max = $v0max, max_v_avg/v0max = $(max_v_avg/v0max)")
-    println("mean vs: $(mean_vs[:,i])")
+    #println("Bm = $Bm")
+    #println("vi = $vi, max_v_avg = $max_v_avg, v0max = $v0max, max_v_avg/v0max = $(max_v_avg/v0max)")
+    #println("mean vs: $(mean_vs[:,i])")
 
     a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
     println(" --- c/a = $(c/a) , c/b = $(c/b)")
@@ -268,7 +240,7 @@ for i in 1:steps
         #println("Finished step $(last_step + i)")
         @save "$datadir/data$(lpad(i + last_step,5,"0")).jld2" data
         data2 = [max_vs[:, 1:i], max_abs_v[1:i]]
-        @save "$datadir/speeds.jld2" data2
+        @save "$datadir/aa_speeds.jld2" data2
     end
 
     if max_v_avg/v0max < epsilon

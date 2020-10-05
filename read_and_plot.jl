@@ -9,15 +9,16 @@ using StatsBase
 using Optim
 
 dir = "fakinstikuts"
-sourcedir = "/mnt/big_data/shared_folder/plotation/"
+sourcedir = "/mnt/big_data/shared_folder/plotation/uncoupled"
 datadir=sourcedir#"/home/laigars/sim_data/new_rotating_fast_3/"
-#datadir = "/home/laigars/sim_data/new_rotating_fast_5/"
+#datadir = "/home/laigars/sim_data/star_3/"
 #datadir2="/home/andris/sim_data/2019-03-15/1
 
-#file_no = 1180
-#last_file = readdir(datadir)[file_no]
-last_file = readdir(datadir)[end]
-#last_file = "data06114.jld2"
+
+
+last_file = readdir(datadir)[end-1] # end-3 if there are aux files (source, speeds);  end if there aren't
+
+
 println()
 println(last_file)
 # fix hardcoding

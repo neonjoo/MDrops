@@ -3,9 +3,12 @@ using JLD2
 using FileIO
 using StatsBase
 
-dir = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt"
-sourcedir = "/mnt/big_data/shared_folder/plotation/$dir"
-outdir="/mnt/big_data/shared_folder/plotation/$dir"
+dir = "star_2"
+sourcedir = "/home/laigars/sim_data/$dir"
+outdir="/home/laigars/sim_data/pics/$dir"
+
+#sourcedir = "/mnt/big_data/shared_folder/plotation/$dir"
+#outdir="/mnt/big_data/shared_folder/plotation/$dir"
 len = size(readdir(sourcedir),1) - 1
 
 if !isdir("$outdir")
@@ -15,7 +18,7 @@ end
 
 ratios = []
 steps = []
-for f in readdir(sourcedir)[3:1:end]
+for f in readdir(sourcedir)[3:3:end]
     println("f = $f")
     #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
     @load "$sourcedir/$f" data
