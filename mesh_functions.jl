@@ -1633,9 +1633,10 @@ function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cut
 
     for i = 1:size(faces,2)
         v1, v2, v3 = points[:,faces[1,i]], points[:,faces[2,i]], points[:,faces[3,i]] # triangle vertices
-        d1, d2, d3 = norm(v1-v2), norm(v1-v3), norm(v2-v3) # edge lengths
-
-        maxd = max(d1,d2,d3) # longest edge
+        #d1, d2, d3 = norm(v1-v2), norm(v1-v3), norm(v2-v3) # edge lengths
+        #maxd = max(d1,d2,d3) # longest edge
+        dS = 0.5*norm(cross(v1-v2,v1-v3))
+        maxd = sqrt(dS) # root of area (seems to be a better measure)
         Hface = sum(H[faces[:,i]]) / 3 # average curvature H of vertices
 
         crit = Hface * maxd
