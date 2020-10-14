@@ -696,7 +696,7 @@ function make_normals_parab(points, connectivity, normals0; eps = 10^-8)
     #normals and CDE - parameters from locally fitted paraboloids
     #z = A*x+B*y+C*x^2+D*x*y+E*y^2
     #A and B should be 0 at the end
-    println("fitting decoupled locals paraboloids")
+    println("fitting decoupled local paraboloids")
 
     CDE = zeros(Float64, size(points)) # 3xN array
     AB = zeros(Float64, (2,size(points,2))) # 2xN array
@@ -738,11 +738,6 @@ function make_normals_parab(points, connectivity, normals0; eps = 10^-8)
             # println("norm(n) before rotation = ", norm([ -A, -B, 1.] / sqrt(1. + A^2 + B^2)))
             # println("A = ",A, " B = ", B)
             # println(C, " ", D, " ", E)
-            # println("determinant = ", det(rotmat))
-            # println("rotation matrix")
-            # println(rotmat[1,:])
-            # println(rotmat[2,:])
-            # println(rotmat[3,:])
             # same_i_times += 1
             # if same_i_times > 10
             #     readline()
@@ -1624,7 +1619,7 @@ function make_neighbor_faces(faces)
     return neighbor_faces
 end
 
-function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = 0.55)
+function mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = 0.5)
     k1, k2 = make_pc(CDE) # principal curvatures on vertices
     H = sqrt.(k1.^2 + k2.^2)
 
@@ -2124,4 +2119,17 @@ function make_Vvecs_conjgrad_par(normals,triangles, vertices, vvecs, epsilon, ma
     end
 
     return V
+end
+
+function make_volume(points,faces, normals)
+    dS = make_dS(points,faces)
+    V = 1/3 * sum(sum(points.*normals,dims=1) .* dS')
+    return V
+end
+
+function make_center_of_mass(points,faces, normals)
+    dS = make_dS(points,faces)
+    V = make_volume(points,faces, normals)
+    rc = 1/V * 1/2 * sum(sum(points.*points,dims=1) .* normals .* dS', dims=2)
+    return rc
 end

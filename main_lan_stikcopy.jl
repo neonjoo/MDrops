@@ -10,6 +10,7 @@ using StatsBase
 using LinearAlgebra
 using FastGaussQuadrature
 using Optim
+using Distributed
 #using Makie
 
 include("./SurfaceGeometry/dt20L/src/Iterators.jl")
@@ -51,9 +52,9 @@ faces = Array{Int64}(faces)
 
 println("Loaded mesh; nodes = $(size(points,2))")
 
-continue_sim = false
+continue_sim = true
 
-dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_uncoupled_parabs"
+dataname = "elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_uncoupled_parabs_contd5_paral"
 datadir = "/home/andris/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -93,6 +94,7 @@ if continue_sim
     global last_step = parse(Int32, last_file[5:9])
     println("last step: $last_step")
     normals = Normals(points, faces)
+    cp("main_lan_stikcopy.jl", "$datadir/aa_source_code.jl"; force=true)
 end
 
 if !isdir("$datadir")
@@ -106,21 +108,25 @@ end
 
 
 
-previous_i_when_flip = 0
+previous_i_when_flip = -1000
+previous_i_when_split = -1000
+println("Running on $(Threads.nthreads()) threads")
 for i in 1:steps
-    println("------------------------------------------------------------------------------------------------- Step ($i)$(i+last_step)")
+    println("----------------------------------------------------------------------")
+    println("----- Number of points: $(size(points,2)) ---------- Step ($i)$(i+last_step)----------")
+    println("----------------------------------------------------------------------")
     global points, faces, connectivity, normals, all_vs, velocities, neighbor_faces, edges, CDE
     global t, H0, epsilon
     global max_abs_v, max_v_avg
-    global previous_i_when_flip
+    global previous_i_when_flip, previous_i_when_split
     edges = make_edges(faces)
     neighbor_faces = make_neighbor_faces(faces)
     connectivity = make_connectivity(edges)
     #normals, CDE = make_normals_spline(points, connectivity, edges, normals)
     normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
-    psi = PotentialSimple(points, faces, normals, mu, H0)
-    Ht = HtField(points, faces, psi, normals)
-    Hn_norms = NormalFieldCurrent(points, faces, normals, Ht, mu, H0)
+    psi = PotentialSimple_par(points, faces, normals, mu, H0)
+    Ht = HtField_par(points, faces, psi, normals)
+    Hn_norms = NormalFieldCurrent_par(points, faces, normals, Ht, mu, H0)
     Hn = normals .* Hn_norms'
     #println("H = $(H0)")
     #mup = mu
@@ -138,8 +144,8 @@ for i in 1:steps
 
     println("Bm = $Bm")
 
-    @time velocities = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities, 1e-6, 500)
+    @time velocities = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    @time velocities = make_Vvecs_conjgrad_par(normals,faces, points, velocities, 1e-6, 500)
 
     #@time velocities = make_enright_velocities(points, t)
     #passive stabilization
@@ -157,11 +163,24 @@ for i in 1:steps
     normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
     #normals, CDE = make_normals_spline(points, connectivity, edges, normals)
 
-    cutoff_crit = 0.55
-    minN_triangles_to_split = 13
+    cutoff_crit = 0.5 # 0.5 for sqrt(dS) measure, 0.55 for maxd measure
+    minN_triangles_to_split = 5
+    #if i == 1
+    	# hot fix to stop the LoadError: SingularException(5) on 1788th step
+    	
+    #	minN_triangles_to_split = 6
+    #end
+    
+    # min_fraction_triangles_to_split = 13/162
+    # minN_triangles_to_split = size(points,2) * min_fraction_triangles_to_split
+    #minN_triangles_to_split = 30
+
+    # changed this function to measure charecteritic length as sqrt(dS)
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
     println("Number of too large triangles: ",sum(marked_faces))
-    if sum(marked_faces) > minN_triangles_to_split#any(marked_faces)
+    if (sum(marked_faces) >= minN_triangles_to_split) && (i - previous_i_when_split >= 5)
+        # split no more often than every 26 iterations to allow flipping to remedy the mesh
+        previous_i_when_split = i
         # if i == 9
         #     break
         # end
@@ -176,7 +195,13 @@ for i in 1:steps
         points_new, faces_new = add_points(points, faces,normals, edges, CDE; cutoff_crit = cutoff_crit)
         edges_new = make_edges(faces_new)
         connectivity_new = make_connectivity(edges_new)
-
+	
+	if i == 1
+		data_fresh = [points_new, faces_new]
+		#println("Finished step $(last_step + i)")
+		@save "/home/andris/sim_data/just_added_points$(lpad(i + last_step,5,"0")).jld2" data_fresh
+        end
+        
         println("-----------------------------------")
         println("New V-E+F = ", size(points_new,2)-size(edges_new,2)+size(faces_new,2))
         println("New number of points: ", size(points_new,2))
@@ -196,7 +221,52 @@ for i in 1:steps
         println("-- flipped?: $do_active")
         println("---- active stabbing second --------")
         points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
+	
+	
+	if i >= 1 # ==1 
+	# hot fix to stop the not stopping of paraboloid fit on 1947th step
+	# hot fix to stop the not stopping of paraboloid fit on 2001st step # from now on do 6 stabbings after adding points
+		println("-----------------------------------")
+		println("New V-E+F = ", size(points_new,2)-size(edges_new,2)+size(faces_new,2))
+		println("New number of points: ", size(points_new,2))
+		println("New number of faces: ", size(faces_new,2))
+		println("New number of edges: ", size(edges_new,2))
+		println("-----------------------------------")
+		println("active stabbing after adding points")
+		println("------flipping edges 3---------")
+		faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+		edges_new = make_edges(faces_new)
+		println("-- flipped?: $do_active")
+		println("---- active stabbing 3 --------")
+		points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
+		println("------flipping edges 4---------")
+		faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+		edges_new = make_edges(faces_new)
+		println("-- flipped?: $do_active")
+		println("---- active stabbing 4 --------")
+		points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
+		println("-----------------------------------")
+		println("New V-E+F = ", size(points_new,2)-size(edges_new,2)+size(faces_new,2))
+		println("New number of points: ", size(points_new,2))
+		println("New number of faces: ", size(faces_new,2))
+		println("New number of edges: ", size(edges_new,2))
+		println("-----------------------------------")
+		println("active stabbing after adding points")
+		println("------flipping edges 5---------")
+		faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+		edges_new = make_edges(faces_new)
+		println("-- flipped?: $do_active")
+		println("---- active stabbing 5 --------")
+		points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
+		println("------flipping edges 6---------")
+		faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+		edges_new = make_edges(faces_new)
+		println("-- flipped?: $do_active")
+		println("---- active stabbing 6 --------")
+		points_new = active_stabilize_old_surface(points,CDE,normals,points_new, faces_new, connectivity_new, edges_new)
 
+	end
+	
         points, faces, edges, connectivity = points_new, faces_new, edges_new, connectivity_new
         normals = Normals(points, faces)
         println("New first approx normals pointing out? ", all(sum(normals .* points,dims=1).>0))

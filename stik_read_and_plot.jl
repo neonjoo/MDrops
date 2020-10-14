@@ -8,7 +8,7 @@ using JLD2
 using StatsBase
 using Optim
 
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2_splitfrom13/"
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_uncoupled_parabs/"
 #datadir2="/home/andris/sim_data/2019-03-15/1
 
 #file_no = 1180

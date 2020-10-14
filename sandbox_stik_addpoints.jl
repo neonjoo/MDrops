@@ -18,10 +18,10 @@ include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 ## making mesh
 
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2_splitfrom13/"
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptive_dt/"
 
 files = readdir(datadir)
-N = 80
+N = 22
 file = files[2+N]
 println(file)
 Ndata = size(files,1)-3
@@ -31,10 +31,7 @@ Ndata = size(files,1)-3
 
 points, faces = data[1], data[2]
 faces = Array{Int64,2}(faces)
-mean_x, mean_y, mean_z = (StatsBase.mean(points[1,:]),
-                StatsBase.mean(points[2,:]),
-                StatsBase.mean(points[3,:]))
-points = points .- [mean_x, mean_y, mean_z]
+
 
 
 a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
@@ -42,8 +39,8 @@ a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
 normals = Normals(points, faces)
-(normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
-
+normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
+neighbor_faces = make_neighbor_faces(faces)
 
 k1, k2 = make_pc(CDE)
 H = sqrt.(k1.^2 + k2.^2)
@@ -61,15 +58,15 @@ for face_ind in 1:size(faces,2)
     end
 
     Hface[face_ind] = sum(H[faces[:,face_ind]]) / 3
-    deltaSface[face_ind] = sum(deltaS[faces[:,face_ind]]) / 3
+    deltaSface[face_ind] = sum(deltaS[faces[:,face_ind]]) / 6
     zface[face_ind] = sum(points[3,faces[:,face_ind]]) / 3
 end
 deltaS = make_dS(points,faces)
 critS = sqrt.(deltaSface) .* Hface
 critL = maxLface .* Hface
 ## add points to places of high curvature
-Plots.scatter(zface,critS)
-Plots.scatter!(zface,critL)
+Plots.scatter!(zface,critS)
+#Plots.scatter!(zface,critL)
 #
 # function make_neighbor_faces(faces)
 #     neighbor_faces = Array{Int64}(undef, 3, 0)
@@ -588,3 +585,62 @@ connectivity = make_connectivity(edges)
 normals = Normals(points, faces)
 
 @time n_par, CDE_par, AB = make_normals_parab(points, connectivity, edges, normals; eps = 10^-8)
+
+
+function mark_faces_for_splitting2(points, faces, edges, CDE, neighbor_faces; cutoff_crit = 0.5)
+    k1, k2 = make_pc(CDE) # principal curvatures on vertices
+    H = sqrt.(k1.^2 + k2.^2)
+
+    ## mark faces that are too curved and need to be split
+    marked_faces = falses(size(faces,2))
+    crits = zeros(size(faces,2))
+    dSs = zeros(size(faces,2))
+    for i = 1:size(faces,2)
+        v1, v2, v3 = points[:,faces[1,i]], points[:,faces[2,i]], points[:,faces[3,i]] # triangle vertices
+        #d1, d2, d3 = norm(v1-v2), norm(v1-v3), norm(v2-v3) # edge lengths
+        #maxd = max(d1,d2,d3) # longest edge
+        dS = 0.5*norm(cross(v1-v2,v1-v3))
+        dSs[i] = dS
+        maxd = sqrt(dS) # root of area (seems to be a better measure)
+        Hface = sum(H[faces[:,i]]) / 3 # average curvature H of vertices
+
+        crit = Hface * maxd
+        crits[i] = crit
+        if crit > cutoff_crit
+            marked_faces[i] = true
+        end
+    end
+
+    # mark also all the faces that have at least two nearby marked faces
+    neighbors_marked = false
+    while !neighbors_marked
+        # println("checking if many neighbors are marked")
+        marked_faces_old = copy(marked_faces)
+        for i = 1:size(faces,2)
+            if marked_faces[i] == false
+
+                nearby_marked_faces = 0
+                for j in neighbor_faces[:,i]
+                    if marked_faces[j] == true
+                        nearby_marked_faces += 1
+                    end
+                end
+                if nearby_marked_faces > 1
+                    marked_faces[i] = true
+                    # println(marked_faces[i])
+                    # println(nearby_marked_faces," marked kaimiņi")
+                end
+
+            end
+        end
+
+        if marked_faces_old == marked_faces
+            neighbors_marked = true
+        else
+            println("marked new faces")
+        end
+    end # end while
+
+
+    return marked_faces, crits, dSs
+end

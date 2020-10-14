@@ -1,3 +1,5 @@
+cd("/home/andris/MDrops/")
+
 using Pkg
 pkg"activate ."
 pkg"resolve"
@@ -82,7 +84,7 @@ for i = 1:Ndata
     ts[i] = t
 end
 
-plot(ts,as./bs)
+Plots.plot(ts,as./bs)
 
 datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_manyN_adaptive_dt/"
 
@@ -119,7 +121,7 @@ for i = 1:Ndata
     ts[i] = t
 end
 
-plot!(ts,as./bs)
+Plots.plot!(ts,as./bs)
 
 
 datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_manymoreN_adaptive_dt/"
@@ -158,9 +160,9 @@ for i = 1:Ndata
 end
 
 
-plot!(ts,as./bs)
+Plots.plot!(ts,as./bs)
 
-datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_old_surface_stabil_flip2/"
+datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_uncoupled_parabs/"
 
 files = readdir(datadir)
 
@@ -196,7 +198,7 @@ for i = 1:Ndata
 end
 
 
-plot!(ts,as./bs)
+Plots.plot!(ts,as./bs)
 
 
 datadir="/home/andris/sim_data/elongation_Bm5_lamdba10_mu30_adaptiveN_adaptive_dt_zinch_stabil/"
@@ -235,7 +237,7 @@ for i = 1:Ndata
 end
 
 
-plot!(ts,as./bs)
+Plots.plot!(ts,as./bs)
 
-xlims!((0,50))
-ylims!((1,2.5))
+xlims!((0,20))
+ylims!((1,1.5))
