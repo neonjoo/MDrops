@@ -1242,122 +1242,21 @@ function make_F(triangles, vertices, V)
     return F
 end
 
-function make_tanggradF(normals,triangles, vertices, V)
 
-    # normals = normals'
-    # triangles = triangles'
-    # vertices = vertices'
-    # V = V'
-
-    Nvertices = size(vertices, 2)
-    gradF = zeros(3,Nvertices)
-
-    for i = 1:Nvertices
-
-        # finds the i-th triangle indices in the triangle 2D array
-        mask = findall(x-> x == i, faces)
-        num = length(mask)
-        (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
-        for n in 1:num
-            row[n], col[n] = mask[n][1], mask[n][2]
-        end
-
-
-        for this_triang = 1:length(row)
-            j1 = (row[this_triang])%(3) + 1 # from 1 to 3
-            j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
-
-
-            # radiusvektori uz sho trijsturu virsotneem
-            # pirmais atbilst i
-
-            # println()
-            # println("triang $i, kaims = $this_triang ----------------------------------------------------------------------------")
-            #
-            # println()
-            # println("x index")
-            # println("trig size = ", size(triangles))
-            # println("vert size = ", size(vertices))
-            #
-            # println("$(row[this_triang]), $(col[this_triang]) -> ", triangles[row[this_triang], col[this_triang]])
-            # println("$j1, $(col[this_triang]) -> ", triangles[j1, col[this_triang]])
-            # println("$j2, $(col[this_triang]) -> ", triangles[j2, col[this_triang]])
-            #
-            # println(size(triangles))
-            # #println(triangles'[1:20, :])
-            # println(triangles[1, 1:15])
-            # println(triangles[2, 1:15])
-            # println(triangles[3, 1:15])
-            # println()
-
-
-            x = [vertices[:,triangles[row[this_triang],col[this_triang]]],
-                vertices[:,triangles[j1, col[this_triang]]],
-                vertices[:,triangles[j2, col[this_triang]]]]
-
-            v = [V[:, triangles[row[this_triang],col[this_triang]]],
-                V[:, triangles[j1, col[this_triang]]],
-                V[:, triangles[j2, col[this_triang]]]]
-
-            # this_hsq = [hsq[triangles[row[this_triang],col[this_triang]]]
-            #     hsq[triangles[row[this_triang],j1]]
-            #     hsq[triangles[row[this_triang],j2]]]
-
-            a = norm(x[2] - x[1])
-            b = norm(x[3] - x[2])
-            c = norm(x[1] - x[3])
-
-            Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
-
-            A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-                (4*Cdelta * (a^2 + b^2 + c^2)^3)
-            B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-                (4*Cdelta * (a^2 + b^2 + c^2)^3)
-            C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-                (4*Cdelta * (a^2 + b^2 + c^2)^3)
-
-            dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-                        -B * dot(x[3] - x[2], v[3] - v[2]) +
-                        -C * dot(x[1] - x[3], v[1] - v[3])
-
-            # gradF[i,:] = gradF[i,:] + ...
-            #             0.4 / Cdelta^2 * 2 * dCdeltadt*( A*(x[2,:] - x[1,:]) + C*(x[3,:] - x[1,:])) + ...
-            #             -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4)^2 *(x[2,:] - x[1,:]) + ...
-            #             -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4)^2 *(x[3,:] - x[1,:])
-
-            t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x[2,:] - x[1,:]) .+ C*(x[3,:] - x[1,:]))
-            t2 = -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (x[2,:] - x[1,:])
-            t3 = -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (x[3,:] - x[1,:])
-
-            gradF[:,i] = gradF[:,i] + t1[1] + t2[1] + t3[1]
-
-
-
-        end
-
-        tang_proj = I - normals[:,i] * normals[:,i]'
-        gradF[:,i] = tang_proj * gradF[:,i]
-
-    end
-
-    return gradF
-
-end
-
-function make_gradF(normals,triangles, vertices, V)
+function make_tanggradF(normals,triangles, vertices, V,neighbor_triang_masks)
 
         # normals = normals'
         # triangles = triangles'
         # vertices = vertices'
         # V = V'
-
         Nvertices = size(vertices, 2)
         gradF = zeros(3,Nvertices)
 
         for i = 1:Nvertices
 
             # finds the i-th triangle indices in the triangle 2D array
-            mask = findall(x-> x == i, faces)
+            #mask = findall(x-> x == i, triangles)
+            mask = neighbor_triang_masks[i]
             num = length(mask)
             (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
             for n in 1:num
@@ -1373,41 +1272,17 @@ function make_gradF(normals,triangles, vertices, V)
                 # radiusvektori uz sho trijsturu virsotneem
                 # pirmais atbilst i
 
-                # println()
-                # println("triang $i, kaims = $this_triang ----------------------------------------------------------------------------")
-                #
-                # println()
-                # println("x index")
-                # println("trig size = ", size(triangles))
-                # println("vert size = ", size(vertices))
-                #
-                # println("$(row[this_triang]), $(col[this_triang]) -> ", triangles[row[this_triang], col[this_triang]])
-                # println("$j1, $(col[this_triang]) -> ", triangles[j1, col[this_triang]])
-                # println("$j2, $(col[this_triang]) -> ", triangles[j2, col[this_triang]])
-                #
-                # println(size(triangles))
-                # #println(triangles'[1:20, :])
-                # println(triangles[1, 1:15])
-                # println(triangles[2, 1:15])
-                # println(triangles[3, 1:15])
-                # println()
+                x1 = vertices[:,triangles[row[this_triang],col[this_triang]]]
+                x2 = vertices[:,triangles[j1, col[this_triang]]]
+                x3 = vertices[:,triangles[j2, col[this_triang]]]
 
+                v1 = V[:, triangles[row[this_triang],col[this_triang]]]
+                v2 = V[:, triangles[j1, col[this_triang]]]
+                v3 = V[:, triangles[j2, col[this_triang]]]
 
-                x = [vertices[:,triangles[row[this_triang],col[this_triang]]],
-                    vertices[:,triangles[j1, col[this_triang]]],
-                    vertices[:,triangles[j2, col[this_triang]]]]
-
-                v = [V[:, triangles[row[this_triang],col[this_triang]]],
-                    V[:, triangles[j1, col[this_triang]]],
-                    V[:, triangles[j2, col[this_triang]]]]
-
-                # this_hsq = [hsq[triangles[row[this_triang],col[this_triang]]]
-                #     hsq[triangles[row[this_triang],j1]]
-                #     hsq[triangles[row[this_triang],j2]]]
-
-                a = norm(x[2] - x[1])
-                b = norm(x[3] - x[2])
-                c = norm(x[1] - x[3])
+                a = norm(x2 - x1)
+                b = norm(x3 - x2)
+                c = norm(x1 - x3)
 
                 Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
 
@@ -1418,20 +1293,96 @@ function make_gradF(normals,triangles, vertices, V)
                 C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
                     (4*Cdelta * (a^2 + b^2 + c^2)^3)
 
-                dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-                            -B * dot(x[3] - x[2], v[3] - v[2]) +
-                            -C * dot(x[1] - x[3], v[1] - v[3])
+                dCdeltadt = -A * dot(x2 - x1, v2 - v1) +
+                            -B * dot(x3 - x2, v3 - v2) +
+                            -C * dot(x1 - x3, v1 - v3)
 
                 # gradF[i,:] = gradF[i,:] + ...
                 #             0.4 / Cdelta^2 * 2 * dCdeltadt*( A*(x[2,:] - x[1,:]) + C*(x[3,:] - x[1,:])) + ...
                 #             -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4)^2 *(x[2,:] - x[1,:]) + ...
                 #             -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4)^2 *(x[3,:] - x[1,:])
 
-                t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x[2,:] - x[1,:]) .+ C*(x[3,:] - x[1,:]))
-                t2 = -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (x[2,:] - x[1,:])
-                t3 = -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (x[3,:] - x[1,:])
+                t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x2 - x1) + C*(x3 - x1))
+                t2 = -4*dot(x2 - x1, v2 - v1) * (x2 - x1)
+                t3 = -4*dot(x3 - x1, v3 - v1) * (x3 - x1)
 
-                gradF[:,i] = gradF[:,i] + t1[1] + t2[1] + t3[1]
+                gradF[:,i] = gradF[:,i] + t1 + t2 + t3
+
+            end
+
+            tang_proj = I - normals[:,i] * normals[:,i]'
+            gradF[:,i] = tang_proj * gradF[:,i]
+
+        end
+
+        return gradF
+
+end
+
+function make_gradF(normals,triangles, vertices, V,neighbor_triang_masks)
+
+        # normals = normals'
+        # triangles = triangles'
+        # vertices = vertices'
+        # V = V'
+        Nvertices = size(vertices, 2)
+        gradF = zeros(3,Nvertices)
+
+        for i = 1:Nvertices
+
+            # finds the i-th triangle indices in the triangle 2D array
+            #mask = findall(x-> x == i, triangles)
+            mask = neighbor_triang_masks[i]
+            num = length(mask)
+            (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
+            for n in 1:num
+                row[n], col[n] = mask[n][1], mask[n][2]
+            end
+
+
+            for this_triang = 1:length(row)
+                j1 = (row[this_triang])%(3) + 1 # from 1 to 3
+                j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
+
+
+                # radiusvektori uz sho trijsturu virsotneem
+                # pirmais atbilst i
+
+                x1 = vertices[:,triangles[row[this_triang],col[this_triang]]]
+                x2 = vertices[:,triangles[j1, col[this_triang]]]
+                x3 = vertices[:,triangles[j2, col[this_triang]]]
+
+                v1 = V[:, triangles[row[this_triang],col[this_triang]]]
+                v2 = V[:, triangles[j1, col[this_triang]]]
+                v3 = V[:, triangles[j2, col[this_triang]]]
+
+                a = norm(x2 - x1)
+                b = norm(x3 - x2)
+                c = norm(x1 - x3)
+
+                Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
+
+                A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
+                    (4*Cdelta * (a^2 + b^2 + c^2)^3)
+                B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
+                    (4*Cdelta * (a^2 + b^2 + c^2)^3)
+                C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
+                    (4*Cdelta * (a^2 + b^2 + c^2)^3)
+
+                dCdeltadt = -A * dot(x2 - x1, v2 - v1) +
+                            -B * dot(x3 - x2, v3 - v2) +
+                            -C * dot(x1 - x3, v1 - v3)
+
+                # gradF[i,:] = gradF[i,:] + ...
+                #             0.4 / Cdelta^2 * 2 * dCdeltadt*( A*(x[2,:] - x[1,:]) + C*(x[3,:] - x[1,:])) + ...
+                #             -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[2])) - 0.5*(this_hsq[1] + this_hsq[2]) / a^4)^2 *(x[2,:] - x[1,:]) + ...
+                #             -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4)^2 *(x[3,:] - x[1,:])
+
+                t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x2 - x1) + C*(x3 - x1))
+                t2 = -4*dot(x2 - x1, v2 - v1) * (x2 - x1)
+                t3 = -4*dot(x3 - x1, v3 - v1) * (x3 - x1)
+
+                gradF[:,i] = gradF[:,i] + t1 + t2 + t3
 
             end
 
@@ -1440,6 +1391,7 @@ function make_gradF(normals,triangles, vertices, V)
         return gradF
 
 end
+
 
 function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIters)
 
@@ -1452,10 +1404,12 @@ function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIte
     # normals = normals'
     # vvecs = vvecs'
     println("passive stabbing")
+    # finds indices of triangles near point i
+    neighbor_triang_masks = [findall(x-> x == i, faces) for i in 1:size(points, 2)]
     # first gradient descent
-    f = make_tanggradF(normals,triangles, vertices, vvecs)
-    gradFv = make_gradF(normals, triangles, vertices, vvecs)
-    gradFf = make_gradF(normals, triangles, vertices, f)
+    f = make_tanggradF(normals,triangles, vertices, vvecs, neighbor_triang_masks)
+    gradFv = make_gradF(normals, triangles, vertices, vvecs, neighbor_triang_masks)
+    gradFf = make_gradF(normals, triangles, vertices, f, neighbor_triang_masks)
 
     ksi = - sum(sum(gradFv .* f, dims=2)) / sum(sum(gradFf .* f, dims=2))
 
@@ -1466,10 +1420,10 @@ function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIte
 
     # then conjugated gradient()
     for i = 1:maxIters
-        f = make_tanggradF(normals,triangles, vertices, V)
-        gradFv = make_gradF(normals, triangles, vertices, V)
-        gradFvp = make_gradF(normals, triangles, vertices, Vp)
-        gradFf = make_gradF(normals, triangles, vertices, f)
+        f = make_tanggradF(normals,triangles, vertices, V, neighbor_triang_masks)
+        gradFv = make_gradF(normals, triangles, vertices, V, neighbor_triang_masks)
+        gradFvp = make_gradF(normals, triangles, vertices, Vp, neighbor_triang_masks)
+        gradFf = make_gradF(normals, triangles, vertices, f, neighbor_triang_masks)
         Ff = make_F(triangles, vertices, f)
         Fdeltav = make_F(triangles, vertices, V-Vp)
 
