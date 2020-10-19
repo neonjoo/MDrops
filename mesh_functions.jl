@@ -1189,21 +1189,32 @@ function make_F(triangles, vertices, V)
     F = 0
 
     for i = 1:Ntriangles
-        x = [vertices[:,triangles[1,i]],
-             vertices[:,triangles[2,i]],
-             vertices[:,triangles[3,i]]]
+        # x = [vertices[:,triangles[1,i]],
+        #      vertices[:,triangles[2,i]],
+        #      vertices[:,triangles[3,i]]]
+        #
+        # v = [V[:,triangles[1,i]],
+        #      V[:,triangles[2,i]],
+        #      V[:,triangles[3,i]]]
 
-        v = [V[:,triangles[1,i]],
-             V[:,triangles[2,i]],
-             V[:,triangles[3,i]]]
 
+        x1 = vertices[:,triangles[1,i]]
+        x2 = vertices[:,triangles[2,i]]
+        x3 = vertices[:,triangles[3,i]]
+
+        v1 = V[:,triangles[1,i]]
+        v2 = V[:,triangles[2,i]]
+        v3 = V[:,triangles[3,i]]
         # this_hsq = [hsq[triangles[i,1]]
         #             hsq[triangles[i,2]]
         #             hsq[triangles[i,3]]]
 
-        a = norm(x[2] - x[1])
-        b = norm(x[3] - x[2])
-        c = norm(x[1] - x[3])
+        # a = norm(x[2] - x[1])
+        # b = norm(x[3] - x[2])
+        # c = norm(x[1] - x[3])
+        a = norm(x2 - x1)
+        b = norm(x3 - x2)
+        c = norm(x1 - x3)
         # println("$i: $a $b $c")
         # try
         #     global Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
@@ -1221,9 +1232,12 @@ function make_F(triangles, vertices, V)
         C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
             (4*Cdelta * (a^2 + b^2 + c^2)^3);
 
-        dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-                    -B * dot(x[3] - x[2], v[3] - v[2]) +
-                    -C * dot(x[1] - x[3], v[1] - v[3])
+        # dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
+        #             -B * dot(x[3] - x[2], v[3] - v[2]) +
+        #             -C * dot(x[1] - x[3], v[1] - v[3])
+        dCdeltadt = -A * dot(x2 - x1, v2 - v1) +
+                    -B * dot(x3 - x2, v3 - v2) +
+                    -C * dot(x1 - x3, v1 - v3)
 
 
         # F = F + ...
@@ -1232,11 +1246,14 @@ function make_F(triangles, vertices, V)
         #     2*( dot(x[3,:] - x[2,:], v[3,:] - v[2,:]) * (1/(0.5*(this_hsq[3] + this_hsq[2])) - 0.5*(this_hsq[3] + this_hsq[2]) / b^4) )^2 + ...
         #     2*( dot(x[1,:] - x[3,:], v[1,:] - v[3,:]) * (1/(0.5*(this_hsq[1] + this_hsq[3])) - 0.5*(this_hsq[1] + this_hsq[3]) / c^4) )^2
 
+        # F = F + 0.4 / Cdelta^2 * dCdeltadt^2 +
+        #     2*( dot(x[2] - x[1], v[2] - v[1]))^2 +
+        #     2*( dot(x[3] - x[2], v[3] - v[2]))^2 +
+        #     2*( dot(x[1] - x[3], v[1] - v[3]))^2
         F = F + 0.4 / Cdelta^2 * dCdeltadt^2 +
-            2*( dot(x[2] - x[1], v[2] - v[1]))^2 +
-            2*( dot(x[3] - x[2], v[3] - v[2]))^2 +
-            2*( dot(x[1] - x[3], v[1] - v[3]))^2
-
+            2*( dot(x2 - x1, v2 - v1))^2 +
+            2*( dot(x3 - x2, v3 - v2))^2 +
+            2*( dot(x1 - x3, v1 - v3))^2
     end
 
     return F
@@ -1405,7 +1422,7 @@ function make_Vvecs_conjgrad(normals,triangles, vertices, vvecs, epsilon, maxIte
     # vvecs = vvecs'
     println("passive stabbing")
     # finds indices of triangles near point i
-    neighbor_triang_masks = [findall(x-> x == i, faces) for i in 1:size(points, 2)]
+    neighbor_triang_masks = [findall(x-> x == i, triangles) for i in 1:size(vertices, 2)]
     # first gradient descent
     f = make_tanggradF(normals,triangles, vertices, vvecs, neighbor_triang_masks)
     gradFv = make_gradF(normals, triangles, vertices, vvecs, neighbor_triang_masks)
@@ -2086,4 +2103,31 @@ function make_center_of_mass(points,faces, normals)
     V = make_volume(points,faces, normals)
     rc = 1/V * 1/2 * sum(sum(points.*points,dims=1) .* normals .* dS', dims=2)
     return rc
+end
+
+function rk2(points,t,dt,vel_fun::Function, stab_fun::Function; do_passive = true)
+    # second order (midpoint) Runge Kutta method
+
+    # Time dependence only if the field is changing.
+    # To minimize mesh deformation and keep the vel_fun smooth,
+    # vel_fun should be the unstabilized velocity function.
+    # If vel_fun contains passive stabilization, it might break this method.
+    # Passive stabilization is done here.
+
+    # vel_fun(points,t)
+    # stab_fun(velocities)
+    println("RK2: calculating 1st velocities")
+    k1 = vel_fun(points,t)
+    println("RK2: calculating 2nd velocities in RK2")
+    vels = vel_fun(points + k1*dt/2, t + dt/2) # a.k.a. k2
+
+    if do_passive
+        println("RK2: passive stabbing")
+        vels_stab = stab_fun(vels)
+    else
+        vels_stab = vels
+    end
+
+    new_points = points + vels_stab*dt
+    return new_points, vels
 end
