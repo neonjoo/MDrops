@@ -11,7 +11,7 @@ using Optim
 dir = "fakinstikuts"
 sourcedir = "/mnt/big_data/shared_folder/plotation/uncoupled"
 datadir=sourcedir#"/home/laigars/sim_data/new_rotating_fast_3/"
-#datadir = "/home/laigars/sim_data/star_3/"
+datadir = "/home/laigars/sim_data/star_5/"
 #datadir2="/home/andris/sim_data/2019-03-15/1
 
 

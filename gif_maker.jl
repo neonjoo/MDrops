@@ -3,7 +3,7 @@ using JLD2
 using FileIO
 using StatsBase
 
-dir = "star_2"
+dir = "star_5"
 sourcedir = "/home/laigars/sim_data/$dir"
 outdir="/home/laigars/sim_data/pics/$dir"
 
@@ -18,7 +18,7 @@ end
 
 ratios = []
 steps = []
-for f in readdir(sourcedir)[3:3:end]
+for f in readdir(sourcedir)[1747:1:end]
     println("f = $f")
     #@load "$sourcedir/data$(lpad(i,5,"0")).jld2" data
     @load "$sourcedir/$f" data

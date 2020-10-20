@@ -1,3 +1,7 @@
+using Pkg
+pkg"activate ."
+pkg"resolve"
+
 using JLD2
 using StatsBase
 using LinearAlgebra
@@ -15,314 +19,25 @@ points = Array{Float64}(points)
 faces = Array{Int64}(faces)
 
 
-function PotentialSimple_par(points,faces,normals,mu,H0;regularize=true)
-    # return the magnetic potential psi on the surface of teh drop
 
-    hmag = mu
-    A = zeros(Float64,size(points,2),size(points,2))
 
-    vareas = zeros(Float64,size(points,2))
-    for i in 1:size(faces,2)
-        v1,v2,v3 = faces[:,i]
-        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1]))/2
-        vareas[v1] += area/3
-        vareas[v2] += area/3
-        vareas[v3] += area/3
-    end
-
-    Threads.@threads for xkey in 1:size(points,2)
-
-        x = points[:,xkey]
-        nx = normals[:,xkey]
-
-        for ykey in 1:size(points,2)
-            if xkey==ykey
-                continue
-            end
-            y = points[:,ykey]
-            ny = normals[:,ykey]
-
-            A[ykey,xkey] = dot(y-x,ny)/norm(y-x)^3 * vareas[ykey]
-        end
-    end
-
-    B = zeros(Float64,size(points,2))
-    for xkey in 1:size(points,2)
-        B[xkey] = 2*dot(H0,points[:,xkey])/(hmag+1)
-    end
-
-    if regularize==true
-        A = A'
-        reg_A = A - Diagonal(Float64[sum(A[i,:]) for i in 1:size(A,2)])
-        psi = (I * (1- (hmag-1)/(hmag+1)) - 1/2/pi * (hmag-1)/(hmag+1) * reg_A) \ B
-    else
-        A = A*(hmag-1)/(hmag+1)/2/pi
-        A = A'
-        psi = (I - A)\B
-    end
-
-    return psi
-end
-
-function HtField_par(points, faces, psi, normals)
-    # return the tangential component of the magnetic field on the droplet surface
-    # returns a vector
-    Ht = Array{Float64}(undef,3,size(points,2))
-    H = HField(points,faces,psi)
-
-    Threads.@threads for xkey in 1:size(points,2)
-        nx = normals[:,xkey]
-        P = I - nx*nx'
-        Ht[:,xkey] = P*H[:,xkey]
-    end
-
-    return Ht
-end
-
-function NormalFieldCurrent_par(points,faces,normals,Ht,mu,H0; eps=0.0001)
-    # return normal component of magnetic field on the surface of the droplet
-    # returns a scalar
-
-    hmag = mu
-
-    for xkey in 1:size(points,2)
-        nx = normals[:,xkey]
-        #Ht[:,xkey] = (eye(3) - nx*nx')*Ht[:,xkey]
-    end
-
-    vareas = zeros(Float64,size(points,2))
-    for i in 1:size(faces,2)
-        v1,v2,v3 = faces[:,i]
-        area = norm(cross(points[:,v2]-points[:,v1],points[:,v3]-points[:,v1])) /2
-        vareas[v1] += area/3
-        vareas[v2] += area/3
-        vareas[v3] += area/3
-    end
-
-
-    function qs(xi,eta,v1,v2,v3,x,nx,Htx)
-        y = (1 - xi - eta)*points[:,v1] + xi*points[:,v2] + eta*points[:,v3]
-        Hty = (1 - xi - eta)*Ht[:,v1] + xi*Ht[:,v2] + eta*Ht[:,v3]
-        ny =  (1 - xi - eta)*normals[:,v1] + xi*normals[:,v2] + eta*normals[:,v3]
-        s = - dot(nx,cross(Hty - Htx,cross(ny,-(y-x)/norm(y-x)^2)))
-    end
-
-    NP = 10
-    tt, ww = gausslegendre(NP)
-
-    function strquad(q::Function,x1,x2,x3)
-
-        B = dot(x3-x1,x2-x1)/norm(x2-x1)^2
-        C = norm(x3-x1)^2/norm(x2-x1)^2
-        hS = norm(cross(x2-x1,x3-x1))
-
-        s = 0
-        for i in 1:NP
-            Chi = pi/4*(1 + tt[i])
-
-            R = 1/(cos(Chi) + sin(Chi))
-            si = 0
-            for j in 1:NP
-                rho = R/2*(1 + tt[j])
-                si += q(rho*cos(Chi),rho*sin(Chi))*ww[j]
-            end
-
-            s += si*R/2 / sqrt(cos(Chi)^2 + B*sin(2*Chi) + C*sin(Chi)^2) * ww[i]
-        end
-        s *= pi/4
-
-        return s*hS/norm(x2 - x1)
-    end
-
-    Hn = Array{Float64}(undef,size(points,2))
-
-    Threads.@threads for xkey in 1:size(points,2)
-
-        nx = normals[:,xkey]
-        x = points[:,xkey] + eps*nx
-        Htx = Ht[:,xkey]
-
-        s = 0
-        for ykey in 1:size(points,2)
-            !(xkey==ykey) || continue
-            y = points[:,ykey]
-            ny = normals[:,ykey]
-            Hty = Ht[:,ykey]
-
-            #s += dot(nx,-(Hty-Htx)*dot((y-x)/norm(y-x)^3,ny)) * vareas[ykey]
-            s += dot(nx,-(Hty-Htx)*dot((y-x)/norm(y-x)^3,ny)) * vareas[ykey]
-            s += -dot(nx,cross(Hty-Htx,cross(ny,-(y-x)/norm(y-x)^3))) * vareas[ykey]
-            #s += dot(nx,cross(cross(ny,),-(y-x)/norm(y-x)^3)) * vareas[ykey]
-        end
-
-        ### Making a proper hole
-        for (v2,v3) in DoubleVertexVRing(xkey,faces)
-            area = norm(cross(points[:,v2]-x,points[:,v3]-x))/2
-
-            ny = normals[:,v2]
-            y = points[:,v2]
-            s -= -dot(nx,cross(Ht[:,v2]-Htx,cross(ny,-(y-x)/norm(y-x)^3))) * area/3
-
-            ny = normals[:,v3]
-            y = points[:,v3]
-            s -= -dot(nx,cross(Ht[:,v3]-Htx,cross(ny,-(y-x)/norm(y-x)^3))) * area/3
-
-            ### Singular triangle integration
-
-            #s += strquad((xi,eta) -> qs(xi,eta,xkey,v2,v3,x,nx,Htx),x,points[:,v2],points[:,v3],abstol=abs(s/100))[1]
-            s += strquad((xi,eta) -> qs(xi,eta,xkey,v2,v3,x,nx,Htx),x,points[:,v2],points[:,v3])
-        end
-
-        #println("xkey is $xkey")
-
-        Hn[xkey] = dot(H0,nx)/hmag + 1/4/pi * (1-hmag)/hmag * s
-    end
-
-    return Hn
-end
-
-function make_magvelocities_par(vertices, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    #without the use of levi civita tensor
-    # lambda = int viscosity / ext viscosity
-    # Returns vertex velocities from the Stokes flow integral equations
-    # using Wielandt's deflation as describeed in Zinchenko 1997, Das 2017
-    # w + T*w + 4*pi*C*w + B*w = F
-    println("calculating velocities")
-    deltaS = make_dS(points,faces)
-
-    #fbar = mu*(mu-1)/8pi * Hfieldn.^2 + (mu-1)/8pi * Hfieldt.^2
-    fbar = mu*(mu-1)/8pi * Hn_2 + (mu-1)/8pi * Ht_2
-
-
-    S = sum(deltaS)
-    xc = [0.,0.,0.]
-    for x = 1:size(vertices,2)
-        rx = vertices[:,x]
-        xc = xc + rx * deltaS[x] / S
-    end
-
-    F = zeros(3*size(vertices,2),1)
-    T = zeros(3*size(vertices,2),3*size(vertices,2))
-    #C = C1+C2
-    C1 = zeros(3*size(vertices,2),3*size(vertices,2))
-    C2 = zeros(3*size(vertices,2),3*size(vertices,2))
-    B = zeros(3*size(vertices,2),3*size(vertices,2))
-
-    M = zeros(3,3)
-    # fill M
-    for x = 1:size(vertices,2)
-        rx = vertices[:,x]
-        # Matrix(1.0I, 3, 3) <- 3x3 Identity matrix
-        M += (Matrix(1.0I, 3, 3) * dot(rx - xc, rx - xc) -
-            (rx - xc) * (rx - xc)') * deltaS[x]
-            #   ^ changed the transpose
-    end
-    Minv = inv(M) # calculate inverse of M
-
-    Threads.@threads for y = 1:size(vertices,2)
-        ry = vertices[:,y]
-
-        for j = 1:3
-
-            for x = 1:size(vertices,2)
-                rx = vertices[:,x]
-
-                Gji = (Matrix(1.0I, (3,3)) / norm(rx-ry) +
-                (rx-ry) * (rx-ry)' / norm(rx-ry)^3)
-
-                if x != y
-                   F[3*y-3+j] +=
-                       1/(8*pi) *(
-                       dot(rx-ry,normals[:,x]) * normals[j,y]+
-                       dot(rx-ry,normals[:,y]) * normals[j,x]+
-                       (1-dot(normals[:,x],normals[:,y])) * (rx[j]-ry[j])-
-                       3*(rx[j]-ry[j])/norm(rx-ry)^2*
-                       dot(normals[:,x]+normals[:,y],rx-ry)*
-                       dot(rx-ry,normals[:,x])) * deltaS[x]/norm(rx-ry)^3
-
-                # magnetic part
-                   F[3*y-3+j] += Bm/(8*pi) *
-                   (fbar[x] - fbar[y]) *
-                   dot(Gji[j,:], normals[:,x]) * deltaS[x]
-                #else
-                #polar integration scheme
-                end
-
-                for i = 1:3
-                    if x != y
-                       T[3*y-3+j,3*x-3+i] = -(1-lambda)/(8*pi)*
-                           (-6*(rx[i]-ry[i])*(rx[j]-ry[j]) / norm(rx-ry)^5 )*
-                           dot(rx-ry,normals[:,x])*
-                           deltaS[x]
-
-                       T[3*y-3+j,3*y-3+i] -= -(1-lambda)/(8*pi)*
-                           (-6*(rx[i]-ry[i])*(rx[j]-ry[j]) / norm(rx-ry)^5 )*
-                           dot(rx-ry,normals[:,x])*
-                           deltaS[x]
-                    end
-
-                    B[3*y-3+j,3*x-3+i] = -4*pi/S * normals[j,y] * normals[i,x] * deltaS[x]
-
-                    C1[3*y-3+j,3*x-3+i] =  deltaS[x]/S
-
-                    for k = 1:3
-                        C2[3*y-3+j,3*x-3+i] +=
-                            Minv[k,j]*(rx[k] - xc[k])*deltaS[x]*(ry[i] - xc[i]) -
-                            Minv[i,j]*(rx[k] - xc[k])*deltaS[x]*(ry[k] - xc[k]) -
-                            Minv[k,k]*(rx[j] - xc[j])*deltaS[x]*(ry[i] - xc[i]) +
-                            Minv[i,k]*(rx[j] - xc[j])*deltaS[x]*(ry[k] - xc[k])
-                    end
-                    if i==j
-                        for k = 1:3
-                        for m = 1:3
-                        C2[3*y-3+j,3*x-3+i] +=
-                            Minv[k,k]*(rx[m] - xc[m])*deltaS[x]*(ry[m] - xc[m]) -
-                            Minv[k,m]*(rx[k] - xc[k])*deltaS[x]*(ry[m] - xc[m])
-                        end
-                        end
-                    end
-
-                end
-            end
-
-        end
-    end
-    C = C1 + C2
-
-    # w + T*w + 4*pi*C*w + B*w = F
-    #w = (eye(size(T)) + T + 4*pi*C + B) \ F; old and bad
-    w = (Matrix(1.0I, size(T)) + T + (lambda-1)/2*C + (lambda-1)/(8*pi)*B) \ F
-
-    # w' = C*w
-    # v = w + (lambda-1)/2 * w'
-    varr = w + (lambda-1)/2 * C*w
-
-
-    velocities = reshape(varr ,3,size(vertices,2))
-    return velocities
-end
-
-
-
-function make_F_par(triangles, vertices, V)
+function make_F_par2(triangles, vertices, V)
 
     Ntriangles = size(triangles, 2)
-
     F_values = zeros(Ntriangles)
 
     Threads.@threads for i = 1:Ntriangles
-        x = [vertices[:,triangles[1,i]],
-             vertices[:,triangles[2,i]],
-             vertices[:,triangles[3,i]]]
+        x1 = vertices[:,triangles[1,i]]
+        x2 = vertices[:,triangles[2,i]]
+        x3 = vertices[:,triangles[3,i]]
 
-        v = [V[:,triangles[1,i]],
-             V[:,triangles[2,i]],
-             V[:,triangles[3,i]]]
+        v1 = V[:,triangles[1,i]]
+        v2 = V[:,triangles[2,i]]
+        v3 = V[:,triangles[3,i]]
 
-        a = norm(x[2] - x[1])
-        b = norm(x[3] - x[2])
-        c = norm(x[1] - x[3])
-
+        a = norm(x2 - x1)
+        b = norm(x3 - x2)
+        c = norm(x1 - x3)
 
         Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
 
@@ -333,96 +48,21 @@ function make_F_par(triangles, vertices, V)
         C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
             (4*Cdelta * (a^2 + b^2 + c^2)^3);
 
-        dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-                    -B * dot(x[3] - x[2], v[3] - v[2]) +
-                    -C * dot(x[1] - x[3], v[1] - v[3])
+        dCdeltadt = -A * dot(x2 - x1, v2 - v1) +
+                    -B * dot(x3 - x2, v3 - v2) +
+                    -C * dot(x1 - x3, v1 - v3)
 
         F_values[i] = 0.4 / Cdelta^2 * dCdeltadt^2 +
-            2*( dot(x[2] - x[1], v[2] - v[1]))^2 +
-            2*( dot(x[3] - x[2], v[3] - v[2]))^2 +
-            2*( dot(x[1] - x[3], v[1] - v[3]))^2
-
+            2*( dot(x2 - x1, v2 - v1))^2 +
+            2*( dot(x3 - x2, v3 - v2))^2 +
+            2*( dot(x1 - x3, v1 - v3))^2
     end
 
     return sum(F_values)
 end
 
-function make_tanggradF_par(normals,triangles, vertices, V)
 
-    # normals = normals'
-    # triangles = triangles'
-    # vertices = vertices'
-    # V = V'
-
-    Nvertices = size(vertices, 2)
-    gradF = zeros(3,Nvertices)
-
-    Threads.@threads for i = 1:Nvertices
-
-        # finds the i-th triangle indices in the triangle 2D array
-        mask = findall(x-> x == i, faces)
-        num = length(mask)
-        (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
-        for n in 1:num
-            row[n], col[n] = mask[n][1], mask[n][2]
-        end
-
-
-        for this_triang = 1:length(row)
-            j1 = (row[this_triang])%(3) + 1 # from 1 to 3
-            j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
-
-
-            x = [vertices[:,triangles[row[this_triang],col[this_triang]]],
-                vertices[:,triangles[j1, col[this_triang]]],
-                vertices[:,triangles[j2, col[this_triang]]]]
-
-            v = [V[:, triangles[row[this_triang],col[this_triang]]],
-                V[:, triangles[j1, col[this_triang]]],
-                V[:, triangles[j2, col[this_triang]]]]
-
-
-            a = norm(x[2] - x[1])
-            b = norm(x[3] - x[2])
-            c = norm(x[1] - x[3])
-
-            Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
-
-            A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-                (4*Cdelta * (a^2 + b^2 + c^2)^3)
-            B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-                (4*Cdelta * (a^2 + b^2 + c^2)^3)
-            C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
-                (4*Cdelta * (a^2 + b^2 + c^2)^3)
-
-            dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-                        -B * dot(x[3] - x[2], v[3] - v[2]) +
-                        -C * dot(x[1] - x[3], v[1] - v[3])
-
-
-            t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x[2,:] - x[1,:]) .+ C*(x[3,:] - x[1,:]))
-            t2 = -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (x[2,:] - x[1,:])
-            t3 = -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (x[3,:] - x[1,:])
-
-            gradF[:,i] = gradF[:,i] + t1[1] + t2[1] + t3[1]
-
-        end
-
-        tang_proj = I - normals[:,i] * normals[:,i]'
-        gradF[:,i] = tang_proj * gradF[:,i]
-
-    end
-
-    return gradF
-
-end
-
-function make_gradF_par(normals,triangles, vertices, V)
-
-        # normals = normals'
-        # triangles = triangles'
-        # vertices = vertices'
-        # V = V'
+function make_tanggradF_par2(normals,triangles, vertices, V,neighbor_triang_masks)
 
         Nvertices = size(vertices, 2)
         gradF = zeros(3,Nvertices)
@@ -430,33 +70,29 @@ function make_gradF_par(normals,triangles, vertices, V)
         Threads.@threads for i = 1:Nvertices
 
             # finds the i-th triangle indices in the triangle 2D array
-            mask = findall(x-> x == i, faces)
+            mask = neighbor_triang_masks[i]
             num = length(mask)
             (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
             for n in 1:num
                 row[n], col[n] = mask[n][1], mask[n][2]
             end
 
+
             for this_triang = 1:length(row)
                 j1 = (row[this_triang])%(3) + 1 # from 1 to 3
                 j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
 
+                x1 = vertices[:,triangles[row[this_triang],col[this_triang]]]
+                x2 = vertices[:,triangles[j1, col[this_triang]]]
+                x3 = vertices[:,triangles[j2, col[this_triang]]]
 
-                x = [vertices[:,triangles[row[this_triang],col[this_triang]]],
-                    vertices[:,triangles[j1, col[this_triang]]],
-                    vertices[:,triangles[j2, col[this_triang]]]]
+                v1 = V[:, triangles[row[this_triang],col[this_triang]]]
+                v2 = V[:, triangles[j1, col[this_triang]]]
+                v3 = V[:, triangles[j2, col[this_triang]]]
 
-                v = [V[:, triangles[row[this_triang],col[this_triang]]],
-                    V[:, triangles[j1, col[this_triang]]],
-                    V[:, triangles[j2, col[this_triang]]]]
-
-                # this_hsq = [hsq[triangles[row[this_triang],col[this_triang]]]
-                #     hsq[triangles[row[this_triang],j1]]
-                #     hsq[triangles[row[this_triang],j2]]]
-
-                a = norm(x[2] - x[1])
-                b = norm(x[3] - x[2])
-                c = norm(x[1] - x[3])
+                a = norm(x2 - x1)
+                b = norm(x3 - x2)
+                c = norm(x1 - x3)
 
                 Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
 
@@ -467,54 +103,111 @@ function make_gradF_par(normals,triangles, vertices, V)
                 C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
                     (4*Cdelta * (a^2 + b^2 + c^2)^3)
 
-                dCdeltadt = -A * dot(x[2] - x[1], v[2] - v[1]) +
-                            -B * dot(x[3] - x[2], v[3] - v[2]) +
-                            -C * dot(x[1] - x[3], v[1] - v[3])
+                dCdeltadt = -A * dot(x2 - x1, v2 - v1) +
+                            -B * dot(x3 - x2, v3 - v2) +
+                            -C * dot(x1 - x3, v1 - v3)
 
-                t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x[2,:] - x[1,:]) .+ C*(x[3,:] - x[1,:]))
-                t2 = -4*dot(x[2,:] - x[1,:], v[2,:] - v[1,:]) * (x[2,:] - x[1,:])
-                t3 = -4*dot(x[3,:] - x[1,:], v[3,:] - v[1,:]) * (x[3,:] - x[1,:])
+                t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x2 - x1) + C*(x3 - x1))
+                t2 = -4*dot(x2 - x1, v2 - v1) * (x2 - x1)
+                t3 = -4*dot(x3 - x1, v3 - v1) * (x3 - x1)
 
-                gradF[:,i] = gradF[:,i] + t1[1] + t2[1] + t3[1]
+                gradF[:,i] = gradF[:,i] + t1 + t2 + t3
+
+            end
+
+            tang_proj = I - normals[:,i] * normals[:,i]'
+            gradF[:,i] = tang_proj * gradF[:,i]
+
+        end
+
+        return gradF
+
+end
+
+function make_gradF_par2(normals,triangles, vertices, V,neighbor_triang_masks)
+
+        Nvertices = size(vertices, 2)
+        gradF = zeros(3,Nvertices)
+
+        Threads.@threads for i = 1:Nvertices
+
+            # finds the i-th triangle indices in the triangle 2D array
+            mask = neighbor_triang_masks[i]
+            num = length(mask)
+            (row, col) = zeros(Int64, 1, num), zeros(Int64, 1, num)
+            for n in 1:num
+                row[n], col[n] = mask[n][1], mask[n][2]
+            end
+
+
+            for this_triang = 1:length(row)
+                j1 = (row[this_triang])%(3) + 1 # from 1 to 3
+                j2 = (row[this_triang] + 1)%(3) +1 # from 1 to 3
+
+                x1 = vertices[:,triangles[row[this_triang],col[this_triang]]]
+                x2 = vertices[:,triangles[j1, col[this_triang]]]
+                x3 = vertices[:,triangles[j2, col[this_triang]]]
+
+                v1 = V[:, triangles[row[this_triang],col[this_triang]]]
+                v2 = V[:, triangles[j1, col[this_triang]]]
+                v3 = V[:, triangles[j2, col[this_triang]]]
+
+                a = norm(x2 - x1)
+                b = norm(x3 - x2)
+                c = norm(x1 - x3)
+
+                Cdelta = 0.25 * sqrt(1 - 2*(a^4 + b^4 + c^4)/(a^2 + b^2 + c^2)^2)
+
+                A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
+                    (4*Cdelta * (a^2 + b^2 + c^2)^3)
+                B = (b^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
+                    (4*Cdelta * (a^2 + b^2 + c^2)^3)
+                C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4 ) /
+                    (4*Cdelta * (a^2 + b^2 + c^2)^3)
+
+                dCdeltadt = -A * dot(x2 - x1, v2 - v1) +
+                            -B * dot(x3 - x2, v3 - v2) +
+                            -C * dot(x1 - x3, v1 - v3)
+
+                t1 = 0.4 / Cdelta^2 * 2 * dCdeltadt * ( A*(x2 - x1) + C*(x3 - x1))
+                t2 = -4*dot(x2 - x1, v2 - v1) * (x2 - x1)
+                t3 = -4*dot(x3 - x1, v3 - v1) * (x3 - x1)
+
+                gradF[:,i] = gradF[:,i] + t1 + t2 + t3
 
             end
 
         end
 
         return gradF
+
 end
 
-function make_Vvecs_conjgrad_par(normals,triangles, vertices, vvecs, epsilon, maxIters)
+function make_Vvecs_conjgrad_par2(normals,triangles, vertices, vvecs, epsilon, maxIters)
 
-    # [k1, k2] = principal_curvatures[CDE]; # k1 >= k2
-    # LAMBDA = k1.^2 + k2.^2 + 0.004
-    # K = 4/(sqrt(3) * size(triangles,1)) * sum(LAMBDA.^0.25 .* deltaS)
-    # hsq = K * LAMBDA.^(-0.25)
-    # triangles = triangles'
-    # vertices = vertices'
-    # normals = normals'
-    # vvecs = vvecs'
     println("passive stabbing")
+    # finds indices of triangles near point i
+    neighbor_triang_masks = [findall(x-> x == i, triangles) for i in 1:size(vertices, 2)]
     # first gradient descent
-    f = make_tanggradF_par(normals,triangles, vertices, vvecs)
-    gradFv = make_gradF_par(normals, triangles, vertices, vvecs)
-    gradFf = make_gradF_par(normals, triangles, vertices, f)
+    f = make_tanggradF_par2(normals,triangles, vertices, vvecs, neighbor_triang_masks)
+    gradFv = make_gradF_par2(normals, triangles, vertices, vvecs, neighbor_triang_masks)
+    gradFf = make_gradF_par2(normals, triangles, vertices, f, neighbor_triang_masks)
 
     ksi = - sum(sum(gradFv .* f, dims=2)) / sum(sum(gradFf .* f, dims=2))
 
     V = vvecs + ksi*f
     Vp = vvecs
 
-    F = make_F(triangles, vertices, V)
+    F = make_F_par2(triangles, vertices, V)
 
     # then conjugated gradient()
     for i = 1:maxIters
-        f = make_tanggradF_par(normals,triangles, vertices, V)
-        gradFv = make_gradF_par(normals, triangles, vertices, V)
-        gradFvp = make_gradF_par(normals, triangles, vertices, Vp)
-        gradFf = make_gradF_par(normals, triangles, vertices, f)
-        Ff = make_F_par(triangles, vertices, f)
-        Fdeltav = make_F_par(triangles, vertices, V-Vp)
+        f = make_tanggradF_par2(normals,triangles, vertices, V, neighbor_triang_masks)
+        gradFv = make_gradF_par2(normals, triangles, vertices, V, neighbor_triang_masks)
+        gradFvp = make_gradF_par2(normals, triangles, vertices, Vp, neighbor_triang_masks)
+        gradFf = make_gradF_par2(normals, triangles, vertices, f, neighbor_triang_masks)
+        Ff = make_F_par2(triangles, vertices, f)
+        Fdeltav = make_F_par2(triangles, vertices, V-Vp)
 
         a1 = sum(sum(gradFv .* f, dims=2))
         b1 = Ff
@@ -531,9 +224,7 @@ function make_Vvecs_conjgrad_par(normals,triangles, vertices, vvecs, epsilon, ma
         Vp = Vtemp
 
         Fp = F
-        F = make_F_par(triangles, vertices, V)
-        #println(F)
-        #println((Fp-F)/F)
+        F = make_F_par2(triangles, vertices, V)
 
         if (Fp - F)/F < epsilon
             println("improved tangential velocities")
@@ -547,27 +238,22 @@ function make_Vvecs_conjgrad_par(normals,triangles, vertices, vvecs, epsilon, ma
     return V
 end
 
-# @load "./meshes/points_critical_hyst_2_21.jld2"
-# @load "./meshes/faces_critical_hyst_2_21.jld2"
-#
-# points = Array{Float64}(points')
-# faces = Array{Int64}(faces')
 
-# a,b,c = maximum(points[1,:]), maximum(points[2,:]), maximum(points[3,:])
-#
+
+
 edges = make_edges(faces)
 connectivity = make_connectivity(edges)
 normals = Normals(points, faces)
-(normals, CDE) = make_normals_spline(points, connectivity, edges, normals)
+#(normals, CDE, AB) = make_normals_parab(points, connectivity, edges, normals)
 
-# # #
-# # ## setting simulation parameters
+# #
+# ## setting simulation parameters
 H0 = [0., 0., 1.]
 mu = 10.
 lambda = 10.
 Bm = 3.
 
-## calculating the magnetic field on the surface
+# calculating the magnetic field on the surface
 @time psi = PotentialSimple(points, faces, normals, mu, H0)
 @time psi_par = PotentialSimple_par(points, faces, normals, mu, H0)
 
@@ -579,10 +265,11 @@ Hn = normals .* Hn_norms'
 Hn_2 = sum(Hn.^2, dims=1)
 Ht_2 = sum(Ht_vec.^2, dims=1)
 
-@time v = make_magvelocities(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-@time vp = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+@time v_phys = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
 
-vvecs = v
+vvecs = v_phys
 
+println(333333)
 @time v_stab = make_Vvecs_conjgrad(normals, faces, points, vvecs, 1e-6, 500)
-@time v_stabp = make_Vvecs_conjgrad_par(normals, faces, points, vvecs, 1e-6, 500)
+@time v_stab_par = make_Vvecs_conjgrad_par(normals, faces, points, vvecs, 1e-6, 500)
+@time v_stab_par2 = make_Vvecs_conjgrad_par2(normals, faces, points, vvecs, 1e-6, 500)

@@ -38,14 +38,14 @@ println("Running on $(Threads.nthreads()) threads")
 
 continue_sim = false
 
-dataname = "star_5"
+dataname = "star_7"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
 mu = 10
 
 # Bm_crit = 3.68423 pie mu=30
-Bm = 50 ################################################ zemāk iespējams loado citu
+Bm = 30 ################################################ zemāk iespējams loado citu
 #R0 = 21.5 * 100/480 * 1e-4 # um to cm for cgs
 R0 = 1
 lambda = 7.6
@@ -82,7 +82,6 @@ if continue_sim
     normals = Normals(points, faces)
 end
 
-Bm = 30
 
 println("Loaded mesh; nodes = $(size(points,2))")
 
@@ -98,7 +97,7 @@ end
 previous_i_when_flip = 0
 
 for i in 1:steps
-    println("-----------------------Number of nodes: $(size(points,2))---------------- Step ($i)$(i+last_step)")
+    println("---------------------------------Number of nodes: $(size(points,2))----------------------- Step ($i)$(i+last_step)")
     global points, faces, connectivity, normals, all_vs, velocities
     global t, H0, epsilon
     global max_abs_v, max_v_avg
@@ -110,16 +109,17 @@ for i in 1:steps
 
     psi = PotentialSimple_par(points, faces, normals, mu, H0)
     Ht = HtField_par(points, faces, psi, normals)
+    print("Normal field calculation: ")
     @time Hn_norms = NormalFieldCurrent_par(points, faces, normals, Ht, mu, H0)
     Hn = normals .* Hn_norms'
 
     Hn_2 = sum(Hn.^2, dims=1)
     Ht_2 = sum(Ht.^2, dims=1)
 
-    println("Bm = $Bm")
+    #println("Bm = $Bm")
 
-    @time velocities = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    @time velocities = make_Vvecs_conjgrad_par(normals,faces, points, velocities, 1e-6, 500)
+    @time velocities_phys = make_magvelocities_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
+    @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities_phys, 1e-6, 500)
 
     #dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
      #if dt < 0.2
@@ -134,7 +134,7 @@ for i in 1:steps
 
     H0 = [sin(w*t), 0., cos(w*t)]
 
-    cutoff_crit = 0.55
+    cutoff_crit = 0.55 # 0.5 for sqrt(dS), 0.55 for max triangle edge length
     minN_triangles_to_split = 5
 
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
@@ -236,11 +236,8 @@ for i in 1:steps
     println(" --- c/a = $(c/a) , c/b = $(c/b)")
 
     if i % 1 == 0
-        data = [points, faces, t, H0, Bm, v0max]
-        #println("Finished step $(last_step + i)")
+        data = [points, faces, t, velocities_phys, H0, Bm]
         @save "$datadir/data$(lpad(i + last_step,5,"0")).jld2" data
-        data2 = [max_vs[:, 1:i], max_abs_v[1:i]]
-        @save "$datadir/aa_speeds.jld2" data2
     end
 
     if max_v_avg/v0max < epsilon
@@ -248,14 +245,10 @@ for i in 1:steps
         global reset_vmax
         reset_vmax = true
         global Bm
-        #Bm -= 0.2
         println("----- new Bm = $Bm")
         #break
    end
 end # end simulation iterations
-
-data = [max_vs, mean_vs, points, faces]
-@save "/home/laigars/sim_data/$(dataname)_v.jld2" data
 
 println("Sim done :)")
 
