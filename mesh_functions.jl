@@ -2063,3 +2063,33 @@ function rk2(points,t,dt,vel_fun::Function, stab_fun::Function; do_passive = tru
     new_points = points + vels_stab*dt
     return new_points, vels
 end
+
+function make_meshdeg_dt(velocities, points0, normals, connectivity; cutoff_crit = cutoff_crit, degrade_after_steps = 5, eps = 10^-8)
+# construct a timestep so that mesh degrades slowly enough
+
+    function crit_minus_cutoff(dt)
+        points = points0 + dt*velocities
+
+        discard, CDE, AB = make_normals_parab(points, connectivity, normals; eps = eps)
+        #marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
+        k1, k2 = make_pc(CDE) # principal curvatures on vertices
+        H = sqrt.(k1.^2 + k2.^2)
+        crit = 0.
+        for i = 1:size(faces,2)
+            v1, v2, v3 = points[:,faces[1,i]], points[:,faces[2,i]], points[:,faces[3,i]] # triangle vertices
+            #d1, d2, d3 = norm(v1-v2), norm(v1-v3), norm(v2-v3) # edge lengths
+            #maxd = max(d1,d2,d3) # longest edge
+            dS = 0.5*norm(cross(v1-v2,v1-v3))
+            maxd = sqrt(dS) # root of area (seems to be a better measure)
+            Hface = sum(H[faces[:,i]]) / 3 # average curvature H of vertices
+
+            if Hface * maxd > crit
+                crit = Hface * maxd
+            end
+        end
+        return crit - cutoff_crit
+    end
+
+    #return find_zero(crit_minus_cutoff, 0.) / degrade_after_steps
+    return find_zero(crit_minus_cutoff, 0.000001, Order1()) / degrade_after_steps
+end
