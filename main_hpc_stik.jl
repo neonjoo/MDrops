@@ -38,11 +38,11 @@ w = 0.1
 mu = 10.
 Bm = 25.
 lambda = 100.
-t = 0
+t = 0.
 
 
 dt = 0.05
-steps = 10#3500000
+steps = 3500000
 last_step = 0
 cutoff_crit = 0.2 # for triangle size
 
@@ -72,8 +72,8 @@ previous_i_when_split = -1000
 println("Running on $(Threads.nthreads()) threads")
 steps = steps - last_step
 for i in 1:steps
-    if t > 10.5
-    	#break
+    if t > 500.
+    	break
     end
     println("----------------------------------------------------------------------")
     println("----- Number of points: $(size(points,2)) ---------- Step ($i)$(i+last_step)--- t = $(t)-------")
