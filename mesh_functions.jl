@@ -200,6 +200,19 @@ function make_pc_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
     return k1,k2
 end
 
+function make_normal_local(CDE_local::Array{Float64,1},x::Float64,y::Float64)
+    # returns the normal at the point ( x , y , z(x,y) )
+    # on a locally fitted paraboloid z = Cx^2 + Dxy + Ey^2
+
+    C = CDE_local[1]
+    D = CDE_local[2]
+    E = CDE_local[3]
+
+    normal = [-2*C*x - D*y, -D*x - 2*E*y, 1]
+
+    return normal / norm(normal)
+end
+
 function to_local(r::Array{Float64,1},normal::Array{Float64,1})
     # rotate a vector to local coordinate system
     # with z axis along a normal
@@ -2064,13 +2077,17 @@ function rk2(points,t,dt,vel_fun::Function, stab_fun::Function; do_passive = tru
     return new_points, vels
 end
 
-function make_meshdeg_dt(velocities, points0, normals, connectivity; cutoff_crit = cutoff_crit, degrade_after_steps = 5, eps = 10^-8)
+function make_meshdeg_dt(velocities, points0, faces, connectivity; cutoff_crit = cutoff_crit, degrade_after_steps = 5, eps = 10^-8)
 # construct a timestep so that mesh degrades slowly enough
+
+
+    #Plots.scatter(legend=:topleft)
 
     function crit_minus_cutoff(dt)
         points = points0 + dt*velocities
 
-        discard, CDE, AB = make_normals_parab(points, connectivity, normals; eps = eps)
+        normals_temp = Normals(points,faces)
+        discard, CDE, AB = make_normals_parab(points, connectivity, normals_temp; eps = eps)
         #marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
         k1, k2 = make_pc(CDE) # principal curvatures on vertices
         H = sqrt.(k1.^2 + k2.^2)
@@ -2091,5 +2108,24 @@ function make_meshdeg_dt(velocities, points0, normals, connectivity; cutoff_crit
     end
 
     #return find_zero(crit_minus_cutoff, 0.) / degrade_after_steps
-    return find_zero(crit_minus_cutoff, 0.000001, Order1()) / degrade_after_steps
+    #return find_zero(crit_minus_cutoff, 0.000001, Order1()) / degrade_after_steps
+
+    # dts = 0 : 0.1 : 2
+    # crits = zeros(size(dts,1))
+    # for i = 1:size(dts,1)
+    #     crits[i] = crit_minus_cutoff(dts[i])
+    # end
+    # i = argmin(crits)
+    return find_zero(crit_minus_cutoff, 0.001) / degrade_after_steps #dts[i] / degrade_after_steps
+end
+
+function make_zinchencko_dt(points, connectivity, CDE, coef)
+    dx = make_min_edges(points,connectivity)
+    k1, k2 = make_pc(CDE) # principal curvatures on vertices
+    maxk = zeros(length(k1))
+    for i = 1:length(k1)
+        maxk[i] = max(k1[i],k2[i])
+    end
+    dt = minimum( dx ./ maxk )
+    return coef * dt
 end
