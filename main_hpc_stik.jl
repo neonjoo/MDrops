@@ -27,7 +27,7 @@ faces = Array{Int64}(faces)
 
 println("Loaded mesh; nodes = $(size(points,2))")
 
-continue_sim = false
+continue_sim = true
 
 dataname = "rotation_4"#"dt_test_11"
 datadir = "/home/stikuts/sim_data/$dataname"
@@ -105,10 +105,10 @@ for i in 1:steps
     Ht_2 = sum(Ht.^2, dims=1)
 
     @time velocities_phys = make_magvelocities_2_par(points, normals, lambda, Bm, mu, Hn_2, Ht_2)
-    @time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities_phys, 1e-6, 500)
+	@time velocities = make_Vvecs_conjgrad(normals,faces, points, velocities_phys, 1e-6, 500)
 
     #dt = 0.025*minimum(make_min_edges(points,connectivity)./sum(sqrt.(velocities.^2),dims=1))
-	dt = min(make_zinchencko_dt(points, connectivity, CDE, 7.4), (2*pi/w)/20, 0.07)
+	dt = min(make_zinchencko_dt(points, connectivity, CDE, 7.4), (2*pi/w)*0.0505634375, 0.07)
 
 	# if i == 1 || (i - previous_i_when_split == 1 )
 	# 	println("--- recalculating dt ---")
@@ -161,13 +161,13 @@ for i in 1:steps
         # split no more often than every 5 iterations to allow flipping to remedy the mesh
         previous_i_when_split = i
 
-        println("-----------------------------------")
+        # println("-----------------------------------")
         println("----------Adding mesh points-------")
-        println("    V-E+F = ", size(points,2)-size(edges,2)+size(faces,2))
-        println("    number of points: ", size(points,2))
-        println("    number of faces: ", size(faces,2))
-        println("    number of edges: ", size(edges,2))
-        println("-----------------------------------")
+        # println("    V-E+F = ", size(points,2)-size(edges,2)+size(faces,2))
+        # println("    number of points: ", size(points,2))
+        # println("    number of faces: ", size(faces,2))
+        # println("    number of edges: ", size(edges,2))
+        # println("-----------------------------------")
 
         points_new, faces_new = add_points(points, faces,normals, edges, CDE; cutoff_crit = cutoff_crit)
         edges_new = make_edges(faces_new)
@@ -179,8 +179,8 @@ for i in 1:steps
         println("New number of faces: ", size(faces_new,2))
         println("New number of edges: ", size(edges_new,2))
         println("-----------------------------------")
-        println("active stabbing after adding points")
-        println("------flipping edges first---------")
+        # println("active stabbing after adding points")
+        # println("------flipping edges first---------")
 
 
         # faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
