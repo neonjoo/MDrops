@@ -259,7 +259,7 @@ for i in 1:steps
 		        break
 		    end
 
-		    faces_old = copy(faces_new)
+		    global faces_old = copy(faces_new) # dunno why this has to be global
 		    faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
 
 
