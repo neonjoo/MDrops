@@ -2129,3 +2129,177 @@ function make_zinchencko_dt(points, connectivity, CDE, coef)
     dt = minimum( dx ./ maxk )
     return coef * dt
 end
+
+
+
+function make_simple_tanggrad_E_weights(marked_points, points, connectivity,points_old, normals_old, CDE_old,cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
+    gradE = zeros(size(points))
+        for i = 1:size(points,2)
+        if marked_points[i] == true
+
+            ##### find normal and curvature
+            r0 = points[:,i]
+            minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
+            r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
+            normal_loc =  make_normal_local(CDE_old[:,minind],r0[1],r0[2])
+            normal = to_global(normal_loc,normals_old[:,minind])
+            k1, k2 = make_pc_local(CDE_old[:,minind],r0[1],r0[2])
+
+            h = cutoff_crit / (k1^2 + k2^2) / sqrt(sqrt(3)/4)
+            #println(k1," ",k2)
+            ##### end find normal and curvature
+
+            for j = connectivity[:,i]
+                if j == 0
+                    break
+                end
+                gradE[:,i] += -edgepow*(norm(points[:,j] - points[:,i]) - h )^(edgepow-1) * (points[:,j] - points[:,i])/norm((points[:,j] - points[:,i]))
+            end # end j
+
+            # now loop through adjecent triangles
+            trian_conn = findall(x->x==i,faces)
+            for face_inds = trian_conn
+
+                face_ind = face_inds[2]
+                face = faces[:,face_ind]
+
+                iind = face_inds[1]
+                x1 = points[:,faces[iind,face_ind]]
+                x2 = points[:,faces[iind%3+1,face_ind]]
+                x3 = points[:,faces[(iind+1)%3+1,face_ind]]
+
+                x12, x13, x23 = x2-x1, x3-x1, x3-x2
+                a, b, c = norm(x12), norm(x23), norm(x13)
+
+                deltaS = 0.5 * norm(cross(x12 ,x13))
+
+                C_delta = deltaS / (a^2+b^2+c^2)
+
+                A = (a^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4) /
+                    ( 4*C_delta *(a^2+b^2+c^2)^3 )
+                C = (c^2 * (a^2 + b^2 + c^2) - a^4 - b^4 - c^4) /
+                    ( 4*C_delta *(a^2+b^2+c^2)^3 )
+
+                gradC_delta = A*x12 + C*x13
+
+                gradE[:,i] += trianw * trianpow * (C_delta - sqrt(3)/12)^(trianpow-1) * gradC_delta
+            end # end loop through triangles
+
+            tang_proj = I - normal * normal'
+
+            gradE[:,i] = tang_proj * gradE[:,i]
+
+        end
+        end # end i
+    return gradE
+end
+
+function relax_after_split_weights(marked_points, points, connectivity, points_old, normals_old, CDE_old, cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
+# locally relax mesh after adding points using an energy function
+# E = sum_edges( (x-h)^edgepow ) + trianw * sum_triangles( (C_delta-C_delta_et)^trianpow )
+
+    points_relaxed = copy(points)
+    dt = 0.01
+    maxgrad = 10.
+    oldmaxgrad = 10.
+    while maxgrad > 10^-5
+        tanggrad_E = make_simple_tanggrad_E_weights(marked_points, points_relaxed, connectivity,points_old, normals_old, CDE_old,cutoff_crit; trianw = trianw, trianpow = trianpow, edgepow = edgepow)
+
+        maxgrad = maximum(sum(tanggrad_E .* tanggrad_E,dims=1))
+        #println(maxgrad)
+
+        if maxgrad >= oldmaxgrad
+            break
+        end
+
+        oldmaxgrad = maxgrad
+        points_relaxed -= tanggrad_E * dt
+
+        for i = 1:size(points_relaxed,2)
+            points_relaxed[:,i] = project_on_drop(points_old,CDE_old,normals_old,points_relaxed[:,i])
+        end
+
+    end
+
+    return points_relaxed, oldmaxgrad
+end
+
+function make_simple_E_weights(points,faces,points_old,normals_old, CDE_old,cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
+
+    Ntriangles = size(faces, 2)
+
+    E = 0.
+    for i = 1:Ntriangles
+        x1 = points[:,faces[1,i]]
+        x2 = points[:,faces[2,i]]
+        x3 = points[:,faces[3,i]]
+
+        hs = zeros(3)
+        k = 1
+        for j = faces[:,i]
+            r0 = points[:,j]
+            minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
+            r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
+            normal_loc =  make_normal_local(CDE_old[:,minind],r0[1],r0[2])
+            normal = to_global(normal_loc,normals_old[:,minind])
+            k1, k2 = make_pc_local(CDE_old[:,minind],r0[1],r0[2])
+
+            hs[k] = cutoff_crit / (k1^2 + k2^2) / sqrt(sqrt(3)/4)
+            k+=1
+        end
+
+        E += (norm(x1-x2) - (hs[1] + hs[2])/2 )^edgepow
+        E += (norm(x2-x3) - (hs[2] + hs[3])/2 )^edgepow
+        E += (norm(x3-x1) - (hs[3] + hs[1])/2 )^edgepow
+
+        ## now the equilateral triangle part
+        x12, x13, x23 = x2-x1, x3-x1, x3-x2
+        a, b, c = norm(x12), norm(x23), norm(x13)
+
+        deltaS = 0.5 * norm(cross(x12 ,x13))
+
+        C_delta = deltaS / (a^2+b^2+c^2)
+
+        E += 2*trianw*(C_delta - sqrt(3)/12)^trianpow
+
+    end
+    return E / 2 # because every edge got counted twice and multiplied by 2 the equlateral part
+end
+
+function make_marked_points(points, faces, points_new, marked_faces)
+# mark points to locally relax with the 
+# relax_after_split_weights()
+    marked_face_array = zeros((3,sum(marked_faces)))
+    i = 1
+    for j = 1:size(faces,2)
+        if marked_faces == true
+            marked_face_array[:,i] = faces[:,j]
+            i += 1
+        end
+    end
+
+    marked_points = falses(size(points_new,2))
+    for k = 1:size(points_new,2)
+        if k in marked_face_array
+            marked_points[k] = true
+        end
+        if k > size(points,2)
+            marked_points[k] = true
+        end
+    end
+
+    # quickfix, hopefully is quick
+    for k = 1:size(points_new,2)
+        if marked_points[k] == true
+            for l = connectivity_new[:,k]
+                if l == 0
+                    break
+                end
+
+                marked_points[l] = true
+            end
+        end
+    end
+
+    return marked_points
+end
