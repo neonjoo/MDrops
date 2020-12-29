@@ -122,7 +122,9 @@ for i in 1:steps
 	else # if w == Inf
 		H0_x = [1.,0.,0.]
 		psi_x = PotentialSimple_par(points, faces, normals, mu, H0_x)
-	    Ht_x = HtField_par(points, faces, psi_x, normals)
+		println("made psi_x")
+        Ht_x = HtField_par(points, faces, psi_x, normals)
+		println("made_Ht_x")
 	    Hn_x_norms = NormalFieldCurrent_par(points, faces, normals, Ht_x, mu, H0_x)
 	    Hn_x = normals .* Hn_x_norms'
 
@@ -244,15 +246,15 @@ for i in 1:steps
         println("-----------------------------------")
 
 		global do_active = true
-		global oldE = 1000.
-		print("locally relaxing added points")
+		global oldE = Inf #10.^14
+		println("locally relaxing added points")
 		while do_active
 		    points_new, maxgrad = relax_after_split_weights(marked_points, points_new, connectivity_new, points, normals, CDE,cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
 
 		    points_old = copy(points_new)
 
 		    E = make_simple_E_weights(points_new,faces_new,points, normals, CDE,cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
-		    #println("Mesh energy ",E)
+		    println("Mesh energy ",E)
 		    if E >= oldE
 		        faces_new = faces_old
 		        points_new = points_old
@@ -260,7 +262,7 @@ for i in 1:steps
 		    end
 
 		    global faces_old = copy(faces_new) # dunno why this has to be global
-		    faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
+		    global faces_new, connectivity_new, do_active = flip_edges(faces_new, connectivity_new, points_new)
 
 
 		    oldE = E
