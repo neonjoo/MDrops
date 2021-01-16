@@ -2132,7 +2132,8 @@ end
 
 
 
-function make_simple_tanggrad_E_weights(marked_points, points, connectivity,points_old, normals_old, CDE_old,cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
+function make_simple_tanggrad_E_weights(marked_points, points, faces, connectivity,points_old, normals_old, CDE_old,cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
+# faces nav input funkcijai!!!
     gradE = zeros(size(points))
         for i = 1:size(points,2)
         if marked_points[i] == true
@@ -2154,6 +2155,8 @@ function make_simple_tanggrad_E_weights(marked_points, points, connectivity,poin
                     break
                 end
                 gradE[:,i] += -edgepow*(norm(points[:,j] - points[:,i]) - h )^(edgepow-1) * (points[:,j] - points[:,i])/norm((points[:,j] - points[:,i]))
+                #gradE[:,i] += edgepow*(norm(points[:,j] - points[:,i]) - h )^(edgepow-1) * (points[:,j] - points[:,i])/norm((points[:,j] - points[:,i]))
+
             end # end j
 
             # now loop through adjecent triangles
@@ -2194,18 +2197,19 @@ function make_simple_tanggrad_E_weights(marked_points, points, connectivity,poin
     return gradE
 end
 
-function relax_after_split_weights(marked_points, points, connectivity, points_old, normals_old, CDE_old, cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
+function relax_after_split_weights(marked_points, points, faces, connectivity, points_old, normals_old, CDE_old, cutoff_crit; trianw = 5, trianpow = 2, edgepow = 2)
 # locally relax mesh after adding points using an energy function
 # E = sum_edges( (x-h)^edgepow ) + trianw * sum_triangles( (C_delta-C_delta_et)^trianpow )
 
     points_relaxed = copy(points)
-    dt = 0.01
-    maxgrad = 10.
-    oldmaxgrad = 10.
-    while maxgrad > 10^-5
-        tanggrad_E = make_simple_tanggrad_E_weights(marked_points, points_relaxed, connectivity,points_old, normals_old, CDE_old,cutoff_crit; trianw = trianw, trianpow = trianpow, edgepow = edgepow)
+    #dt = 0.001 # kā noteikt pareizu dt?
 
-        maxgrad = maximum(sum(tanggrad_E .* tanggrad_E,dims=1))
+    maxgrad = 10.
+    oldmaxgrad = Inf
+    while maxgrad > 0 #now always true #10^-60 # was -5
+        tanggrad_E = make_simple_tanggrad_E_weights(marked_points, points_relaxed,faces, connectivity,points_old, normals_old, CDE_old,cutoff_crit; trianw = trianw, trianpow = trianpow, edgepow = edgepow)
+
+        maxgrad = maximum(sqrt.(sum(tanggrad_E .* tanggrad_E,dims=1)))
         #println(maxgrad)
 
         if maxgrad >= oldmaxgrad
@@ -2213,7 +2217,12 @@ function relax_after_split_weights(marked_points, points, connectivity, points_o
         end
 
         oldmaxgrad = maxgrad
+        dt = 0.05*minimum(make_min_edges(points,connectivity)./sum(sqrt.(tanggrad_E.^2),dims=1))
+        #dt = 0.001
+        #println(make_min_edges(points,connectivity)./sum(sqrt.(tanggrad_E.^2),dims=1))
+        #println("dt = ",dt)
         points_relaxed -= tanggrad_E * dt
+        #points_relaxed += tanggrad_E * dt
 
         for i = 1:size(points_relaxed,2)
             points_relaxed[:,i] = project_on_drop(points_old,CDE_old,normals_old,points_relaxed[:,i])
@@ -2241,7 +2250,7 @@ function make_simple_E_weights(points,faces,points_old,normals_old, CDE_old,cuto
             minind = argmin(sum((points_old .- r0).^2,dims=1))[2]
             r0 = to_local(r0-points_old[:,minind],normals_old[:,minind])
             normal_loc =  make_normal_local(CDE_old[:,minind],r0[1],r0[2])
-            normal = to_global(normal_loc,normals_old[:,minind])
+            normal = to_global(normal_loc,normals_old[:,minind]) # this does not seem to be used further
             k1, k2 = make_pc_local(CDE_old[:,minind],r0[1],r0[2])
 
             hs[k] = cutoff_crit / (k1^2 + k2^2) / sqrt(sqrt(3)/4)
@@ -2267,7 +2276,7 @@ function make_simple_E_weights(points,faces,points_old,normals_old, CDE_old,cuto
 end
 
 function make_marked_points(points, faces, points_new, marked_faces)
-# mark points to locally relax with the 
+# mark points to locally relax with the
 # relax_after_split_weights()
     marked_face_array = zeros((3,sum(marked_faces)))
     i = 1
@@ -2289,9 +2298,11 @@ function make_marked_points(points, faces, points_new, marked_faces)
     end
 
     # quickfix, hopefully is quick
+    # this loop could extend further than intended - wont break anything tho
     for k = 1:size(points_new,2)
         if marked_points[k] == true
-            for l = connectivity_new[:,k]
+            for l = connectivity_new[:,k] # this is possibly a bug - not a variable in the function input
+
                 if l == 0
                     break
                 end
