@@ -8,18 +8,20 @@ using JLD2
 using StatsBase
 using Optim
 
-dir = "fakinstikuts"
+
 sourcedir = "/mnt/big_data/shared_folder/plotation/uncoupled"
-datadir=sourcedir#"/home/laigars/sim_data/new_rotating_fast_3/"
-datadir = "/home/laigars/sim_data/star_5/"
-#datadir2="/home/andris/sim_data/2019-03-15/1
+datadir=sourcedir#"/home/laigars/sim_data/new_rotating_fast_3/"]
+datadir = "/home/laigars/sim_data/star_8/"
+# datadir="/home/laigars/sim_data/hpc/rotation_lambd10.0_mu30.0_w1.0_Bm50.0"
+# datadir="/mnt/hpc/sim_data/rotation_lambd10.0_mu30.0_w1.0_Bm50.0"
+#datadir="/mnt/hpc/sim_data/rotation_1"
 
 
-
-last_file = readdir(datadir)[end-1] # end-3 if there are aux files (source, speeds);  end if there aren't
+last_file = readdir(datadir)[1200] # end-3 if there are aux files (source, speeds);  end if there aren't
 
 
 println()
+println(datadir)
 println(last_file)
 # fix hardcoding
 global data

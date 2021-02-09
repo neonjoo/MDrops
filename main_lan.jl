@@ -16,7 +16,7 @@ include("./stabilization.jl")
 #include("./functions.jl")
 include("./mesh_functions.jl")
 include("./physics_functions.jl")
-include("./sandbox_lang.jl")
+#include("./sandbox_lang.jl")
 
 #points_csv= CSV.read("./meshes/points_critical_hyst_2_21.csv", header=0)
 #faces_csv = CSV.read("./meshes/faces_critical_hyst_2_21.csv", header=0)
@@ -36,9 +36,9 @@ faces = Array{Int64}(faces)
 
 println("Running on $(Threads.nthreads()) threads")
 
-continue_sim = false
+continue_sim = true
 
-dataname = "star_7"
+dataname = "star_8"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -75,8 +75,8 @@ if continue_sim
     global data
     println("continuing simulation from: $datadir/$last_file")
     @load "$datadir/$last_file" data
-
-    global points, faces, t, H0, Bm, v0max = data[1], data[2], data[3], data[4], data[5], data[6]
+    # data = [points, faces, t, velocities_phys, H0, Bm]
+    global points, faces, t, velocities_phys, H0, Bm = data[1], data[2], data[3], data[4], data[5], data[6]
     global last_step = parse(Int32, last_file[5:9])
     println("last step: $last_step")
     normals = Normals(points, faces)
@@ -134,7 +134,7 @@ for i in 1:steps
 
     H0 = [sin(w*t), 0., cos(w*t)]
 
-    cutoff_crit = 0.55 # 0.5 for sqrt(dS), 0.55 for max triangle edge length
+    cutoff_crit = 0.4 # 0.5 for sqrt(dS), 0.55 for max triangle edge length
     minN_triangles_to_split = 5
 
     marked_faces  = mark_faces_for_splitting(points, faces, edges, CDE, neighbor_faces; cutoff_crit = cutoff_crit)
@@ -203,30 +203,7 @@ for i in 1:steps
     #dt = 0.1 * scale / max(sqrt(sum(Vvecs.*Vvecs,2)))
     # ElTopo magic
     #actualdt,points2,faces2 = improvemeshcol(points,faces,points2,par)
-    if reset_vmax
-        println("Resetting v0max")
-        global v0max = maximum(abs.(velocities))
-        reset_vmax = false
-    end
-    vi = maximum(abs.(velocities))
-    max_abs_v[i] = vi
 
-    max_vs[:,i] = [velocities[1, argmax(abs.(velocities[1,:]))],
-                    velocities[2, argmax(abs.(velocities[2,:]))],
-                    velocities[3, argmax(abs.(velocities[3,:]))]]
-    mean_vs[:,i] = [StatsBase.mean(abs.(velocities[1,:])),
-                    StatsBase.mean(abs.(velocities[2,:])),
-                    StatsBase.mean(abs.(velocities[3,:]))]
-    try
-        max_v_avg = mean(max_abs_v[i-4:i])
-    catch
-        max_v_avg = max_abs_v[i]
-    end
-
-    if max_v_avg > v0max
-        println("updated v0max")
-        v0max = max_v_avg
-    end
 
     #println("Bm = $Bm")
     #println("vi = $vi, max_v_avg = $max_v_avg, v0max = $v0max, max_v_avg/v0max = $(max_v_avg/v0max)")
@@ -240,14 +217,6 @@ for i in 1:steps
         @save "$datadir/data$(lpad(i + last_step,5,"0")).jld2" data
     end
 
-    if max_v_avg/v0max < epsilon
-        println("-------------------------------------------------------------------- Increasing Bm at step $i")
-        global reset_vmax
-        reset_vmax = true
-        global Bm
-        println("----- new Bm = $Bm")
-        #break
-   end
 end # end simulation iterations
 
 println("Sim done :)")
