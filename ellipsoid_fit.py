@@ -161,7 +161,22 @@ def eqlib_inds(Bms):
 
 
 #eqinds = eqlib_inds(Bms)
+#%%
 
+cs = np.linspace(0.5, 0.65, 50)
+ks = np.linspace(1.0001, 4)
+bms = Bm_vs_K(K_vs_c(cs), 10)
+
+fit = np.polyfit(bms, cs, deg=2)
+fitf = np.poly1d(fit)
+
+plt.plot(bms, cs, ".")
+plt.plot(bms, fitf(bms))
+plt.grid()
+
+
+bms2 = np.arange(17, 26)
+cs2 = fitf(bms2)
 
 #%%
 teorC = np.linspace(1/4,0.99,100)
