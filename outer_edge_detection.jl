@@ -11,10 +11,10 @@ include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 
 
-dir = "0.67"
+dir = "perturbed_5_18.0"
 
 sourcedir = "/home/laigars/sim_data/star_5"
-#sourcedir = "/mnt/hpc/sim_data/$dir"
+sourcedir = "/mnt/hpc/sim_data/$dir"
 
 len = size(readdir(sourcedir),1) - 2
 
@@ -23,20 +23,20 @@ vs = []
 dSs = []
 Vs = zeros(Float64, len)
 
-dira = readdir(sourcedir)[end-700:end-700]
-#dira = ["./elips_0.67_perturbed.jl"]
+dira = readdir(sourcedir)[3:13:end]
+
 len = size(dira, 1)
 println("size of $dira: $len")
-all_params = zeros(Float64, len, 15)
+all_params = zeros(Float64, len, 13)
 times = zeros(Float64, len)
 
 function gaussian(theta, params)
     #R, A, sigma, alpha = params[1:4]
     R = params[1]
-    A = params[2:7]
-    sigma = params[8]
-    alpha = params[9]
-    thetas = params[10:end]
+    A = params[2:6]
+    sigma = params[7]
+    alpha = params[8]
+    thetas = params[9:end]
 
     #println(size(A,1))
     #println(size(theta,1))
@@ -58,7 +58,6 @@ end
 
 
 
-#%%
 global i, file
 for (idx, file) in enumerate(dira)
 
@@ -151,13 +150,13 @@ for (idx, file) in enumerate(dira)
     all = [ts points[1, uniques] points[3, uniques]]
 
     global alls = all[sortperm(all[:,1]), :]
-    global ts, xs, zs
+    global ts, xs, zs, ws
     ts, xs, zs = alls[:, 1], alls[:, 2], alls[:, 3]
     global rs = sqrt.(xs.^2 + zs.^2)
 
     ws = fft(rs)
     num_peaks = argmax(abs.(ws[2:20]))
-    num_peaks = 6
+    #num_peaks = 6
 
     function polar(theta, params)
         R, a, w, phi = params
@@ -171,21 +170,21 @@ for (idx, file) in enumerate(dira)
     #f(params) = sum((polar(ts, params) .- rs).^2)
     fg(params) = sum((gaussian(ts, params) .- rs).^2)
 
+
     #p0 = [1., 1., 6., 0.]
     phi = 0.
     peaks = range(0. + phi, 2*pi*(num_peaks-1)/num_peaks + phi, step=2*pi/num_peaks)
-    p0g = vcat([minimum(rs), 0.5*(maximum(rs)-minimum(rs)), 0.3, 1.7], peaks)
+
 
     global p0g = vcat([0.8*minimum(rs)], repeat([0.9*(maximum(rs)-minimum(rs))], num_peaks), [1., 1.9], peaks)
 
-    global all_params
 
-    p0g = vec(pars)
-
-    #p0g = params
+    if idx > 1
+        p0g = params
+    end
 
     lower = vcat([0.5*minimum(rs)], repeat([0.], num_peaks), [0.01, 1.], peaks .- 0.4)
-    upper = vcat([1.2*minimum(rs)], repeat([1.6*(maximum(rs)-minimum(rs))], num_peaks), [5., 4.], peaks .+ 0.4)
+    upper = vcat([1.03*minimum(rs)], repeat([1.2*(maximum(rs)-minimum(rs))], num_peaks), [5., 4.], peaks .+ 0.4)
 
     #fits = optimize(f, p0)
     fitsg = optimize(fg, lower, upper, p0g)#, iterations=5000)
@@ -208,8 +207,8 @@ end
 #%%
 
 
-theta = range(0., stop=2*pi, length=200)
-plot(1)
+#theta = range(0., stop=2*pi, length=200)
+
 #for p in all_params
 # #    println(p
 # scatter(xs, zs)
@@ -237,8 +236,11 @@ Plots.xlabel!("n", labelfontsize=fs)
 
 params = [2.4293003, 0.4943, 0.86815, 0.9672, 0.9611, 0.9821, 1.185, 0.2435, 1.7895, 0.2159, 1.203, 2.1892, 3.3028, 4.2414, 5.408]
 
+params = all_params[end,:]
 
 #all_params = params
 scatter(xs, zs, label="")
 plot!(gaussian(theta, params) .* cos.(theta), gaussian(theta, params) .* sin.(theta), lw=2, show=true, color=:black, label="")
 #
+plot(ts, rs)
+plot!(ts, gaussian(ts, all_params[end, :]), lw=2, show=true)
