@@ -9,16 +9,15 @@ using StatsBase
 using Optim
 
 
-sourcedir = "/mnt/big_data/shared_folder/plotation/uncoupled"
-datadir=sourcedir#"/home/laigars/sim_data/new_rotating_fast_3/"]
-datadir = "/home/laigars/sim_data/star_8/"
-# datadir="/home/laigars/sim_data/hpc/rotation_lambd10.0_mu30.0_w1.0_Bm50.0"
+#datadir = "/home/laigars/sim_data/star_8/"
+#datadir = "/home/laigars/mdrops/meshes/perturbed/"
+#datadir="/home/laigars/sim_data/hpc/rotation_lambd10.0_mu30.0_w1.0_Bm50.0"
 #datadir="/mnt/hpc/sim_data/rotation_lambd10.0_mu30.0_w1.5_Bm50.0"
-#datadir="/mnt/hpc/sim_data/0.67"
+datadir="/mnt/hpc/sim_data/star_8"
 
 
 last_file = readdir(datadir)[end] # end-3 if there are aux files (source, speeds);  end if there aren't
-
+#last_file = "ellipsoid_n_5_Bm_17.jld2"
 
 println()
 println(datadir)

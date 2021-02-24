@@ -35,7 +35,7 @@ for (idx, bm) in enumerate(bms)
 	# the volume change is 0.05%
 
 	k = 0.03
-	n = 5
+	n = 2
 	ts = atan.(points[3,:], points[1,:])
 	rs = sqrt.(points[1,:].^2 + points[3,:].^2)
 	perturb = k .* cos.(n*ts)
@@ -45,12 +45,13 @@ for (idx, bm) in enumerate(bms)
 	pertpoints[1,:] = pertpoints[1,:] .+ perturb .* cos.(ts) .* rs
 
 #
-# scene = Makie.mesh(pertpoints', faces',color = :lightgray, shading = false, visible = true)
-# Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)#, limits=FRect3D((-5,-5,-5),(10,10,10)))
+#scene = Makie.mesh(pertpoints', faces',color = :lightgray, shading = false, visible = true)
+#Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)#, limits=FRect3D((-5,-5,-5),(10,10,10)))
 #
 # Makie.mesh!(points', faces',color = :green, shading = false, visible = false)
 # Makie.wireframe!(scene[end][1], color = :red, linewidth = 0.7,visible = true)#, limits=FR
+
 	data = [pertpoints, faces]
-	@save "./meshes/perturbed/ellipsoid_n_$(n)_Bm_$(bm).jld2" data
+	#@save "./meshes/perturbed/ellipsoid_n_$(n)_Bm_$(bm).jld2" data
 
 end
