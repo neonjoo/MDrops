@@ -254,7 +254,7 @@ function make_edges(faces)
 
             ##check if edge is in edges
             duplicate = false
-            Threads.@threads for k = 1:size(edges,2)
+            for k = 1:size(edges,2)
                 if edge == edges[:,k]
                     duplicate = true
                     break
