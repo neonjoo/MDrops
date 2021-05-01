@@ -18,12 +18,13 @@ include("./mesh_functions.jl")
 include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 
-cs = [0.67381703, 0.65155044, 0.62959378, 0.60794706, 0.58661027, 0.56558342, 0.5448665 , 0.52445952, 0.50436247]
-bms = [17, 18, 19, 20, 21, 22, 23, 24, 25]
 
-for (idx, bm) in enumerate(bms)
+cs = [0.48842999, 0.47062494, 0.45343979, 0.43690298, 0.42103904, 0.40586855, 0.39140816, 0.37767059, 0.36466462, 0.35239511]
+bms = [26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
+
+for (idx, bm) in enumerate(bms[end-1:end])
 	global points, faces, connectivity, edges
-	cc = cs[idx]
+	cc = cs[idx+6]
 	println("########################################################################################## c = $cc, Bm=$bm")
 	points, faces = expand_icosamesh(R=1, depth=3)
 	points = Array{Float64}(points)
@@ -35,11 +36,12 @@ for (idx, bm) in enumerate(bms)
 	normals = Normals(points, faces)
 	normals, CDE, AB = make_normals_parab(points, connectivity, normals; eps = 10^-8)
 
-	cutoff_crit = 0.2
-	a = 1/sqrt(3)#0.6^(1/3)
-	b = 1/sqrt(3)#0.6^(1/3)
-	c = 1/(a*b)
-
+	println("$bm, $idx, $cc")
+	cutoff_crit = 0.4
+	# a = 1/sqrt(3)#0.6^(1/3)
+	# b = 1/sqrt(3)#0.6^(1/3)
+	# c = 1/(a*b)
+	#continue
 	b = cc
 	a = 1/sqrt(b)
 	c = 1/sqrt(b)
@@ -103,29 +105,21 @@ for (idx, bm) in enumerate(bms)
 	        println("-----------------------------------")
 	        println("---------- Points added -----------")
 	        println("-----------------------------------")
+			println("Num points: $(size(points,2))")
 		end
 	end
 
 	data = [points, faces]
-	@save "./meshes/two_axis_ellipsoid_Bm_$bm.jld2" data
-#%%
-
-	# k = 0.03
-	# n = 5
-	# ts = atan.(points[3,:], points[1,:])
-	# rs = sqrt.(points[1,:].^2 + points[3,:].^2)
-	# #ts = range(0, stop=2pi, step=0.01)
-	# perturb = k .* cos.(n*ts)
-	# #perturb = abs.(perturb)
-	#
-	# pertpoints = copy(points)
-	# pertpoints[3,:] = pertpoints[3,:] .+ perturb .* sin.(ts) .* rs
-	# pertpoints[1,:] = pertpoints[1,:] .+ perturb .* cos.(ts) .* rs
-	#
-	# #scene = Makie.mesh(pertpoints', faces',color = :lightgray, shading = false, visible = true)
-	# #Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)#, limits=FRect3D((-5,-5,-5),(10,10,10)))
-	#
-	# data = [pertpoints, faces]
-	# @save "./meshes/perturbed/ellipsoid_n_$($n)_Bm_$(bm).jld2" data
+	@save "./meshes/two_axis_ellipsoid_Bm_$(bm)_040.jld2" data
 
 end
+
+#%%
+
+points0, faces0 = expand_icosamesh(R=1, depth=3)
+
+scene = Makie.mesh(points', faces',color = :lightgray, shading = false, visible = true)
+Makie.wireframe!(scene[end][1], color = :black, linewidth = 0.7,visible = true)#, limits=FRect3D((-5,-5,-5),(10,10,10)))
+
+Makie.mesh!(points0', faces0',color = :green, shading = false, visible = false)
+Makie.wireframe!(scene[end][1], color = :red, linewidth = 0.7,visible = true)#, limits=FR

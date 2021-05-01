@@ -10,13 +10,13 @@ using Optim
 
 
 #datadir = "/home/laigars/sim_data/star_8/"
-#datadir = "/home/laigars/mdrops/meshes/perturbed/"
-#datadir="/home/laigars/sim_data/hpc/rotation_lambd10.0_mu30.0_w1.0_Bm50.0"
+datadir = "/home/laigars/mdrops/meshes/perturbed/starfish_2/"
+#datadir = "/mnt/hpc/sim_data/perturbed_real_6_15/"
 #datadir="/mnt/hpc/sim_data/rotation_lambd10.0_mu30.0_w1.5_Bm50.0"
-datadir="/mnt/hpc/sim_data/star_8"
+datadir="/mnt/hpc/sim_data/perturbed_2_21_fastfield/"
 
 
-last_file = readdir(datadir)[end] # end-3 if there are aux files (source, speeds);  end if there aren't
+last_file = readdir(datadir)[29] # end-3 if there are aux files (source, speeds);  end if there aren't
 #last_file = "ellipsoid_n_5_Bm_17.jld2"
 
 println()

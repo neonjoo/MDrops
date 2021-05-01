@@ -13,30 +13,28 @@ include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 
 bms = [17, 18, 19, 20, 21, 22, 23, 24, 25]
-bms = [21, 22]
-#bms = [25]
+#bms = [21, 22]
+#bms = [21]
 ns_pars = []
 
-for n in 2:1:2
+for n in 6:1:6
 
     global all_pars = []
     global all_ts = []
     global all_ws = []
     for bm in bms
 
-        outer_dir = "/mnt/hpc/sim_data/perturbed_$(n)"
-        dir = "perturbed_$(n)_$bm"
+        outer_dir = "/mnt/hpc/sim_data"#perturbed_$(n)"
+        dir = "perturbed_$(n)_$(bm)_fastfield"
         sourcedir = "$outer_dir/$dir"
         println("-------------------------------------------------------------------- $dir")
 
         global wss = []
 
         len = size(readdir(sourcedir),1) - 3
-        m = 10 # tik punktu
         start = 3
-        step = div(len,m-1)
         step = 1
-        dira = readdir(sourcedir)[start:step:25]
+        dira = readdir(sourcedir)[start:step:end]
         println(dira)
 
         all_params = zeros(Float64, size(dira,1), 3 + 2*n)
@@ -76,10 +74,23 @@ for n in 2:1:2
             @load "$sourcedir/$file" data
             #@load "$file" data
             points, faces = data[1], data[2]
+
             times[idx] = data[3]
             faces = Array{Int64,2}(faces)
-            print("making edges.. ")
-            @time global edges = make_edges(faces)
+
+            if idx == 1
+                print("making first edges.. -----------")
+                @time global edges = make_edges(faces)
+                global Npoints = size(points, 2)
+            else
+                if size(points,2) != Npoints
+                    print("remaking edges.. ################")
+                    @time global edges = make_edges(faces)
+                    Npoints = size(points, 2)
+                end # end if new_points = old_points
+                #println("same points, moving on at step $idx !")
+            end # end if idx=1
+
             print("making connectivity.. ")
             @time global connectivity = make_connectivity(edges)
 
@@ -127,7 +138,7 @@ for n in 2:1:2
             ws = fft(rs)
             num_peaks = argmax(abs.(ws[2:10]))
             push!(wss, abs.(ws))
-
+            println(idx, wss[end][3])
             theta = range(0., stop=2*pi, length=200)
             fg(params) = sum((gaussian(ts, params) .- rs).^2)
 
@@ -144,16 +155,16 @@ for n in 2:1:2
             global lower = vcat([0.5*minimum(rs)], repeat([0.], num_peaks), [0.01, 1.], peaks .- 0.4) .* 0.8
             global upper = vcat([1.03*minimum(rs)], repeat([2*(maximum(rs)-minimum(rs))], num_peaks), [5., 4.], peaks .+ 0.4) .* 1.5
             print("optimizing: ")
-            @time fitsg = optimize(fg, lower, upper, p0g)#, iterations=5000)
+            #@time fitsg = optimize(fg, lower, upper, p0g)#, iterations=5000)
             #display(params)
             #println()
-            global params = fitsg.minimizer
+            #global params = fitsg.minimizer
 
-            all_params[idx, :] = params
+            #all_params[idx, :] = params
 
-            Plots.scatter(ts, rs, title="$file, Bm=$bm, i=$idx")
-            plot!(ts, gaussian(ts, params), lw=2)#, show=true)
-            savefig("~/sim_data/perturbations/$(n)_$(bm)_$file.png")
+            # Plots.scatter(ts, rs, title="$file, Bm=$bm, i=$idx")
+            # plot!(ts, gaussian(ts, params), lw=2)#, show=true)
+            # savefig("~/sim_data/perturbations/$(n)_$(bm)_$file.png")
 
         end # end folder loop
 
@@ -161,12 +172,12 @@ for n in 2:1:2
         push!(all_ws, wss)
         push!(all_pars, all_params)
 
-        @save "./perturbation_fourier_n_$(n)_Bm_$(bm).jld2" wss
+        @save "./perturbations/perturbation_fourier_n_$(n)_Bm_$(bm).jld2" wss
     end # end bm loop
 
-    @save "./perturbation_times_n_$n.jld2" all_ts
-    @save "./perturbation_params_n_$n.jld2" all_pars
-    @save "./perturbation_fourier_n_$n.jld2" all_ws
+    #@save "./perturbation_times_fastfield_n_$n.jld2" all_ts
+    #@save "./perturbation_params_n_$n.jld2" all_pars
+    #@save "./perturbation_fourier_fastfield_n_$n.jld2" all_ws
 end  # end n loop
 #%%
 
@@ -206,17 +217,17 @@ end  # end n loop
 
 #%%
 
-plot()
-for (i, ww) in enumerate(all_ws)
-    global qq = []
-    for w in ww[2:end]
-        global qq
-        push!(qq, w[3])
-
-    end
-    qq = Array{Float64}(qq)
-    println(qq)
-
-    p = plot!(all_ts[i][2:end-2], qq, label=bms[i])
-    display(p)
-end
+# plot()
+# for (i, ww) in enumerate(all_ws)
+#     global qq = []
+#     for w in ww[2:end]
+#         global qq
+#         push!(qq, w[3])
+#
+#     end
+#     qq = Array{Float64}(qq)
+#     println(qq)
+#
+#     p = plot!(all_ts[i][2:end-2], qq, label=bms[i])
+#     display(p)
+# end
