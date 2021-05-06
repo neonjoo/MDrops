@@ -11,32 +11,28 @@ include("./physics_functions.jl")
 include("./mathematics_functions.jl")
 
 
-dir = "perturbed_5_18.0"
+dir = "perturbed_5_17_fastfield"
 
-sourcedir = "/home/laigars/sim_data/star_5"
+#sourcedir = "/home/laigars/sim_data/star_5"
 sourcedir = "/mnt/hpc/sim_data/$dir"
 
 len = size(readdir(sourcedir),1) - 2
-
-vs = []
-
-dSs = []
-Vs = zeros(Float64, len)
-
-dira = readdir(sourcedir)[3:13:end]
+#sourcedir = "/home/laigars/mdrops/meshes/perturbed/starfish_2"
+dira = readdir(sourcedir)[3:2:end]
 
 len = size(dira, 1)
 println("size of $dira: $len")
-all_params = zeros(Float64, len, 13)
+all_params = zeros(Float64, len, 7)
 times = zeros(Float64, len)
 
 function gaussian(theta, params)
     #R, A, sigma, alpha = params[1:4]
+    n = div(size(params, 1)-3, 2)
     R = params[1]
-    A = params[2:6]
-    sigma = params[7]
-    alpha = params[8]
-    thetas = params[9:end]
+    A = params[2:n+1]
+    sigma = params[n+2]
+    alpha = params[n+3]
+    thetas = params[n+4:end]
 
     #println(size(A,1))
     #println(size(theta,1))
@@ -59,8 +55,9 @@ end
 
 
 global i, file
+wss = []
 for (idx, file) in enumerate(dira)
-
+    global wss
     #dira = readdir(sourcedir)
     #last_file = readdir(sourcedir)[end-1200]
     println(idx, file)
@@ -68,7 +65,7 @@ for (idx, file) in enumerate(dira)
     @load "$sourcedir/$file" data
     #@load "$file" data
     points, faces = data[1], data[2]
-    times[idx] = data[3]
+    #times[idx] = data[3]
     faces = Array{Int64,2}(faces)
     edges = make_edges(faces)
     connectivity = make_connectivity(edges)
@@ -108,45 +105,8 @@ for (idx, file) in enumerate(dira)
 
     outer_edges = outer_edges[:,2:end]
     uniques = unique(outer_edges) # the unique nodes
-    #@save "outer2.jld2" outer_edges
-    #%%
-    #
-    # function get_other_index(arr, ind)
-    #     if arr[1] == ind
-    #         return arr[2]
-    #     else
-    #         return arr[1]
-    #     end
-    # end
-    # xs = zeros(size(uniques))
-    # zs = zeros(size(uniques))
-    #
-    # 1151, 671
-    # 671, 427
-    # 427, 646   this ok
-    # 646, 671
-    # 671, 427
 
-    #
-    # pos = CartesianIndex(1,1)
-    # for j in 1:size(uniques, 1)
-    #     global pos
-    #
-    #     node = outer_edges[pos]
-    #     other_node_pos = CartesianIndex(3 - pos[1], pos[2])
-    #     other_node = outer_edges[other_node_pos]
-    #
-    #     println("$node, $other_node")#, other_node_pos)
-    #     new_pos =  findall(x -> x == other_node, outer_edges)
-    #     #println(new_pos)
-    #     pos = get_other_index(new_pos, other_node_pos)
-    #
-    #     #new_edge = outer_edges[i]
-    #     xs[j], zs[j] = points[1, node], points[3, node]
-    #
-    # end
-    #%%
-    global ts = atan.(points[3, uniques], points[1,uniques])
+    global ts = atan.(points[3, uniques], points[1,uniques]) .+ pi
     all = [ts points[1, uniques] points[3, uniques]]
 
     global alls = all[sortperm(all[:,1]), :]
@@ -154,7 +114,8 @@ for (idx, file) in enumerate(dira)
     ts, xs, zs = alls[:, 1], alls[:, 2], alls[:, 3]
     global rs = sqrt.(xs.^2 + zs.^2)
 
-    ws = fft(rs)
+    global ws = fft(rs)
+    push!(wss, abs.(ws))
     num_peaks = argmax(abs.(ws[2:20]))
     #num_peaks = 6
 
@@ -184,20 +145,21 @@ for (idx, file) in enumerate(dira)
     end
 
     lower = vcat([0.5*minimum(rs)], repeat([0.], num_peaks), [0.01, 1.], peaks .- 0.4)
-    upper = vcat([1.03*minimum(rs)], repeat([1.2*(maximum(rs)-minimum(rs))], num_peaks), [5., 4.], peaks .+ 0.4)
+    upper = vcat([1.03*minimum(rs)], repeat([2*(maximum(rs)-minimum(rs))], num_peaks), [5., 4.], peaks .+ 0.4)
 
     #fits = optimize(f, p0)
-    fitsg = optimize(fg, lower, upper, p0g)#, iterations=5000)
-    global params = fitsg.minimizer
+    println("optimizing")
+    #@time fitsg = optimize(fg, lower, upper, p0g)#, iterations=5000)
+    #global params = fitsg.minimizer
 
-    all_params[idx, :] = params
+    #all_params[idx, :] = params
 
-    #scatter(ts, rs)
+    Plots.scatter(ts, rs)
     #plot!(ts, gaussian(ts, fitsg.minimizer), lw=2, show=true)
     #%%
-    scatter(rs .* cos.(ts), rs .* sin.(ts), lw=2)
+    #scatter(rs .* cos.(ts), rs .* sin.(ts), lw=2)
     # plot!(gaussian(theta, p0g) .* cos.(theta), gaussian(theta, p0g) .* sin.(theta))
-    plot!(gaussian(theta, fitsg.minimizer) .* cos.(theta), gaussian(theta, fitsg.minimizer) .* sin.(theta), lw=3, show=true)
+    #plot!(gaussian(theta, fitsg.minimizer) .* cos.(theta), gaussian(theta, fitsg.minimizer) .* sin.(theta), lw=3, show=true)
 
     #plot!(rr .* cos.(theta), rr .* sin.(theta))
 
@@ -225,22 +187,30 @@ end
 # @save "./perturbation_params.jld2" all_p
 
 #%%
-fs = 12
-
-plot(abs.(ws[2:10]), label="", lw=2, color=1)
-Plots.scatter!(abs.(ws[2:10]), label="", color=1, markersize=5)
-Plots.ylabel!("A", labelfontsize=fs)
-Plots.xlabel!("n", labelfontsize=fs)
-
-#%%
-
-params = [2.4293003, 0.4943, 0.86815, 0.9672, 0.9611, 0.9821, 1.185, 0.2435, 1.7895, 0.2159, 1.203, 2.1892, 3.3028, 4.2414, 5.408]
-
-params = all_params[end,:]
-
-#all_params = params
-scatter(xs, zs, label="")
-plot!(gaussian(theta, params) .* cos.(theta), gaussian(theta, params) .* sin.(theta), lw=2, show=true, color=:black, label="")
+# fs = 12
 #
-plot(ts, rs)
-plot!(ts, gaussian(ts, all_params[end, :]), lw=2, show=true)
+# plot(abs.(ws[2:10]), label="", lw=2, color=1)
+# Plots.scatter!(abs.(ws[2:10]), label="", color=1, markersize=5)
+# Plots.ylabel!("A", labelfontsize=fs)
+# Plots.xlabel!("n", labelfontsize=fs)
+#
+# #%%
+#
+# params = [2.4293003, 0.4943, 0.86815, 0.9672, 0.9611, 0.9821, 1.185, 0.2435, 1.7895, 0.2159, 1.203, 2.1892, 3.3028, 4.2414, 5.408]
+#
+# params = all_params[end,:]
+#
+# #all_params = params
+# scatter(xs, zs, label="")
+#
+# #theta = theta .- pi
+# plot!(gaussian(theta, params) .* cos.(theta), gaussian(theta, params) .* sin.(theta), lw=2, show=true, color=:black, label="")
+# #
+# scatter(ts, rs)
+# plot!(ts, gaussian(ts, all_params[end, :]), lw=2, show=true)
+# #%%
+#
+# pars = [1.221, 0.039, 0.054, 0.038, 0.051, 0.051, 0.260, 2.214, 0.016, 1.263, 2.489, 3.848, 5.059]
+# sh = 0
+
+# plot(ts .- sh, gaussian(ts .- sh, pars), lw=2, show=true)

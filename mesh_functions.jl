@@ -2122,6 +2122,7 @@ end
 function make_zinchencko_dt(points, connectivity, CDE, coef)
     dx = make_min_edges(points,connectivity)
     k1, k2 = make_pc(CDE) # principal curvatures on vertices
+    k1, k2 = abs.(k1), abs.(k2)
     maxk = zeros(length(k1))
     for i = 1:length(k1)
         maxk[i] = max(k1[i],k2[i])

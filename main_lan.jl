@@ -27,7 +27,7 @@ include("./physics_functions.jl")
 
 # points = convert(Array, points_csv)
 # faces = convert(Array, faces_csv)
-points, faces = expand_icosamesh(R=1, depth=2)
+points, faces = expand_icosamesh(R=1, depth=3)
 
 #@load "./meshes/faces_critical_hyst_2_21.jld2" faces
 points = Array{Float64}(points)
@@ -36,9 +36,9 @@ faces = Array{Int64}(faces)
 
 println("Running on $(Threads.nthreads()) threads")
 
-continue_sim = true
+continue_sim = false
 
-dataname = "star_8"
+dataname = "test_spherical"
 datadir = "/home/laigars/sim_data/$dataname"
 
 H0 = [0., 0., 1.]
@@ -52,14 +52,15 @@ lambda = 7.6
 gamma = H0[3]^2 * R0 / Bm
 #gamma = 8.2 * 1e-4
 #gamma = 7.7 * 1e-4 # from fitted exp data with mu=34
-w = 10
+w = 0
 
 reset_vmax = true
 last_step = 0
 t = 0
 time_k = 0.05012312572132173
 dt = 2pi / w * time_k
-steps = 10000
+dt = 0.01
+steps = 1
 epsilon = 0.05
 
 normals = Normals(points, faces)
@@ -98,7 +99,7 @@ previous_i_when_flip = 0
 
 for i in 1:steps
     println("---------------------------------Number of nodes: $(size(points,2))----------------------- Step ($i)$(i+last_step)")
-    global points, faces, connectivity, normals, all_vs, velocities
+    global points, faces, connectivity, normals, all_vs, velocities, velocities_phys
     global t, H0, epsilon
     global max_abs_v, max_v_avg
     global previous_i_when_flip
@@ -286,3 +287,22 @@ fig[:show]()
 #  m_dt = 1                                   # 1
 # )
 #par = elparameters(scale
+
+
+function v_x(points)
+    x, y, z = points[1,:], points[2,:], points[3,:]
+    mu = 10
+    lambda = 7.6
+    Bm = 30
+
+    return 3*Bm*(mu-1)^2 .* x .* (1 .+ 3*z.^2) / ( 5 * lambda * (2+mu)^2)
+end
+
+function v_z(points)
+    x, y, z = points[1,:], points[2,:], points[3,:]
+    mu = 10
+    lambda = 7.6
+    Bm = 30
+
+    return 3*Bm*(mu-1)^2 .* z .* (1 .- 6*(x.^2 .+ y.^2) .- 3*z.^2 ) / ( 5 * lambda * (2+mu)^2)
+end
