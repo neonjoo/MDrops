@@ -910,6 +910,9 @@ function active_stabilize(points0::Array{Float64,2},faces::Array{Int64,2},CDE::A
 
             #println("Sc/Sc0 = ",Sc/Sc0)
             #println("Cdelta/Cdelta0 = ",Cdelta_min/Cdelta_min0)
+
+            # N B !! here is an error! The inequalities should be in the opposite direction
+            # Right now the mesh is being stabilized even when it might be unnecessary
             if Sc > critSc*Sc0 && Cdelta_min < critCdelta*Cdelta_min0
                 no_improvement = false
             end
@@ -1763,6 +1766,9 @@ function active_stabilize_old_surface(points_old,CDE_old,normals_old,points0::Ar
 
             #println("Sc/Sc0 = ",Sc/Sc0)
             #println("Cdelta/Cdelta0 = ",Cdelta_min/Cdelta_min0)
+
+            # N B !! here is an error! The inequalities should be in the opposite direction
+            # Right now the mesh is being stabilized even when it might be unnecessary
             if Sc > critSc*Sc0 && Cdelta_min < critCdelta*Cdelta_min0
                 no_improvement = false
             end
