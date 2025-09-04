@@ -52,6 +52,9 @@ Pkg.add("Elliptic")
 # For citing this work refer to article
 
 ```
+Langins, A. & Stikuts, A. P. & Cebers, A. (2022)
+A three-dimensional boundary element method algorithm for simulations of magnetic fluid droplet dynamics
+
 Erdmanis, J. & Kitenbergs, G. & Perzynski, R. & Cebers, A. (2017)
 Magnetic droplet in rotating field: numerical simulation and comparison with experiment
 ```  
